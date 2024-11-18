@@ -1,0 +1,36 @@
+# Ignore virtual environment directory
+.venv/
+
+# Ignore generated .sur files
+*.sur
+# Ignore vscode settings
+.vscode/
+# Ignore tests
+__pycache__/
+# Ignore logs
+*.log
+# Ignore pycache
+*.pyc
+# Ignore cache
+*.egg-info/
+# Ignore build
+build/
+# Ignore dist
+dist/
+# Ignore local development dependencies
+.localdeps/
+# Ignore conda build
+conda-bld/
+# Ignore node_modules
+node_modules/
+# Ignore ipynb checkpoints
+*.ipynb_checkpoints
+# Ignore local development dependencies
+.devenv/
+# Ignore IDE files
+*.sublime-project
+*.sublime-workspace
+# Ignore Jupyter notebook checkpoints
+*.ipynb_checkpoints
+# Ignore local development dependencies
+.env
