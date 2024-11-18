@@ -65,24 +65,40 @@ const parseSURFile = (content) => {
   return { config, composition };
 };
 
-const BeatGrid = ({ beats = [] }) => {
-  return (
-    <div className="flex w-full min-w-[800px]">
-      <div className="flex flex-1 border border-gray-200">
-        {beats.map((beat, idx) => (
+const getTaalInfo = (taal) => {
+  const taalPatterns = {
+    'teental': { pattern: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16'] },
+    'jhaptaal': { pattern: ['dhi', 'na', 'dhi', 'dhi', 'na', 'ti', 'na', 'dhi', 'dhi', 'na'] },
+    'ektaal': { pattern: ['dhin', 'dhin', 'dhage', 'tirkit', 'tu', 'na', 'kat', 'ta', 'dhage', 'tirkit', 'dhi', 'na'] },
+  };
+  return taalPatterns[taal.toLowerCase()]?.pattern || Array(16).fill('-');
+};
+
+const BeatGrid = ({ beats, totalBeats = 16, groupSize = 4, taalInfo = false }) => {
+    const groups = [];
+    for (let i = 0; i < totalBeats; i += groupSize) {
+      groups.push(beats.slice(i, i + groupSize));
+    }
+    
+    return (
+      <div className="flex w-full min-w-full overflow-x-auto">
+        {groups.map((group, groupIdx) => (
           <div 
-            key={idx}
-            className={`
-              flex-1 p-2 text-center border-r last:border-r-0 
-              ${idx > 0 && idx % 4 === 0 ? 'border-l-2' : ''}
-            `}
+            key={groupIdx} 
+            className={`flex-1 border-r last:border-r-0 border-gray-200 min-w-fit ${taalInfo ? 'border-t border-b' : ''}`}
           >
-            {beat || '-'}
+            {group.map((beat, idx) => (
+              <span 
+                key={idx} 
+                className="inline-block w-16 px-2 text-center whitespace-nowrap"
+              >
+                {beat || '-'}
+              </span>
+            ))}
           </div>
         ))}
       </div>
-    </div>
-  );
+    );
 };
 
 const PDFExporter = ({ config, composition }) => {
@@ -90,9 +106,7 @@ const PDFExporter = ({ config, composition }) => {
     const printContent = document.createElement('div');
     printContent.style.display = 'none';
     document.body.appendChild(printContent);
-
-    const beatNumbers = Array.from({ length: 16 }, (_, i) => i + 1);
-    const vibhags = ['×', '2', '3', '4', 'O', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16'];
+    const taalBeats = getTaalInfo(config.taal);
 
     printContent.innerHTML = `
       <div style="font-family: monospace; padding: 20px;">
@@ -102,21 +116,12 @@ const PDFExporter = ({ config, composition }) => {
           <p><strong>Taal:</strong> ${config.taal}</p>
           <p><strong>Tempo:</strong> ${config.tempo}</p>
         </div>
-        
-        <div style="margin-bottom: 24px;">
-          <div style="margin-bottom: 8px;">Beat:</div>
-          ${generateBeatGrid(beatNumbers)}
-          
-          <div style="margin: 8px 0;">Vibhag:</div>
-          ${generateBeatGrid(vibhags)}
-        </div>
-
-        ${composition.map(group => `
-          <div style="margin-bottom: 24px;">
-            <h3 style="color: #2563eb; font-size: 18px; margin: 16px 0;">${group.title}</h3>
-            ${group.lines.map(line => generateBeatGrid(line.beats)).join('')}
+        <div style="margin-top: 32px;">
+          <div class="beat-grid">
+            ${taalBeats.map(beat => `<span class="beat">${beat}</span>`).join('')}
           </div>
-        `).join('')}
+          ${generateFormattedNotation(composition)}
+        </div>
       </div>
     `;
 
@@ -128,22 +133,13 @@ const PDFExporter = ({ config, composition }) => {
           <style>
             @media print {
               body { margin: 0; padding: 20px; }
-              @page { size: A4 landscape; margin: 2cm; }
+              @page { size: A4; margin: 2cm; }
             }
-            .beat-grid { 
-              display: flex;
-              border: 1px solid #ccc;
-              margin-bottom: 8px;
-              min-width: 800px;
-            }
-            .beat-cell {
-              flex: 1;
-              padding: 8px;
-              text-align: center;
-              border-right: 1px solid #ccc;
-            }
-            .beat-cell:last-child { border-right: none; }
-            .beat-cell:nth-child(4n) { border-right: 2px solid #666; }
+            .beat-grid { display: flex; margin-bottom: 8px; }
+            .beat-group { flex: 1; border-right: 1px solid #ccc; }
+            .beat-group:last-child { border-right: none; }
+            .beat { display: inline-block; width: 48px; text-align: center; }
+            .section-title { color: #2563eb; font-size: 18px; margin: 16px 0 8px; }
           </style>
         </head>
         <body>
@@ -161,14 +157,17 @@ const PDFExporter = ({ config, composition }) => {
     document.body.removeChild(printContent);
   };
 
-  const generateBeatGrid = (beats) => {
-    return `
-      <div class="beat-grid">
-        ${beats.map(beat => `
-          <div class="beat-cell">${beat || '-'}</div>
-        `).join('')}
-      </div>
-    `;
+  const generateFormattedNotation = (composition) => {
+    return composition.map(group => `
+      <h3 class="section-title">${group.title}</h3>
+      ${group.lines.map(line => `
+        <div class="beat-grid">
+          ${line.beats.map(beat => `
+            <span class="beat">${beat || '-'}</span>
+          `).join('')}
+        </div>
+      `).join('')}
+    `).join('');
   };
 
   return (
@@ -183,6 +182,7 @@ const SURViewer = ({ content }) => {
   const { config, composition } = parseSURFile(content);
   const beatNumbers = Array.from({ length: 16 }, (_, i) => i + 1);
   const vibhags = ['×', '2', '3', '4', 'O', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16'];
+  const taalBeats = getTaalInfo(config.taal);
 
   return (
     <div className="w-full overflow-x-auto">
@@ -229,6 +229,12 @@ const SURViewer = ({ content }) => {
         <CardContent>
           <div className="space-y-6">
             <div className="space-y-4">
+              <div>
+                <div className="text-sm font-medium mb-2">Taal Pattern:</div>
+                <div className="overflow-x-auto">
+                  <BeatGrid beats={taalBeats} taalInfo={true} />
+                </div>
+              </div>
               <div>
                 <div className="text-sm font-medium mb-2">Beat:</div>
                 <div className="overflow-x-auto">
