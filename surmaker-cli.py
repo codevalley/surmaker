@@ -30,6 +30,7 @@ class CompositionBuilder:
         self.taal_pattern = TaalInfo.get_pattern(taal)
         self.composition_lines = []
         self.current_line = []
+        self.section_headers = []  # Store section headers
     
     def add_empty_beats(self, target_beat: int):
         while self.current_beat < target_beat:
@@ -57,6 +58,10 @@ class CompositionBuilder:
         if beats:
             self.composition_lines.append(beats)
     
+    def add_section_header(self, header: str):
+        """Add a section header"""
+        self.section_headers.append((len(self.composition_lines), header))
+    
     def finalize_line(self):
         if self.current_line:
             self.composition_lines.append(self.current_line)
@@ -72,11 +77,20 @@ class CompositionBuilder:
     def get_formatted_composition(self) -> List[str]:
         self.finalize_line()  # Ensure last line is added
         formatted_lines = []
+        header_idx = 0
         
-        # Helper to format beats into rows
-        def format_row_beats(beats):
+        # Add lines with headers at correct positions
+        for i, line in enumerate(self.composition_lines):
+            # Add any headers that belong before this line
+            while header_idx < len(self.section_headers) and self.section_headers[header_idx][0] == i:
+                if formatted_lines and not formatted_lines[-1].startswith('#'):
+                    formatted_lines.append("")  # Add blank line before header if needed
+                formatted_lines.append(self.section_headers[header_idx][1])
+                header_idx += 1
+            
+            # Format and add the line
             formatted_beats = []
-            for _, lyric, note in beats:
+            for _, lyric, note in line:
                 if lyric != "-" and note != "-":
                     formatted_beats.append(f"[{lyric}:{note}]")
                 else:
@@ -86,36 +100,16 @@ class CompositionBuilder:
                         formatted_beats.append(f"[{lyric}]")
                     if lyric == "-" and note == "-":
                         formatted_beats.append("[-]")
-            return ''.join(formatted_beats)
+            
+            formatted_lines.append(f"b: {''.join(formatted_beats)}")
         
-        # Process each line
-        for line in self.composition_lines:
-            notes_line = []
-            lyrics_line = []
-            has_empty_beats = False
-            
-            for beat, lyric, note in line:
-                if lyric == "-" and note == "-":
-                    has_empty_beats = True
-                
-                if lyric != "-" and note != "-":
-                    notes_line.append(f"[{lyric}:{note}]")
-                    lyrics_line = None
-                else:
-                    if note != "-":
-                        notes_line.append(f"[{note}]")
-                    if lyric != "-" and lyrics_line is not None:
-                        lyrics_line.append(f"[{lyric}]")
-            
-            # Format the line based on content
-            if has_empty_beats:
-                formatted_lines.append(f"b: {format_row_beats(line)}")
-            else:
-                if lyrics_line:
-                    formatted_lines.append(f"l: {''.join(lyrics_line)}")
-                if notes_line:
-                    formatted_lines.append(f"b: {''.join(notes_line)}")
-                    
+        # Add any remaining headers
+        while header_idx < len(self.section_headers) and self.section_headers[header_idx][0] == len(self.composition_lines):
+            if formatted_lines and not formatted_lines[-1].startswith('#'):
+                formatted_lines.append("")  # Add blank line before header if needed
+            formatted_lines.append(self.section_headers[header_idx][1])
+            header_idx += 1
+        
         return formatted_lines
 
     def display_current_row(self) -> str:
@@ -170,6 +164,8 @@ class SURFileGenerator:
         in_config = False
         in_composition = False
         current_line = []
+        section_headers = []
+        line_count = 0
         
         for line in content.split('\n'):
             line = line.strip()
@@ -192,10 +188,12 @@ class SURFileGenerator:
             if in_config and ':' in line:
                 key, value = line.split(':', 1)
                 config[key.strip()] = value.strip().strip('"')
-            elif in_composition or (line.startswith('b:') or line.startswith('l:')):
-                # Include lines that are part of composition or start with beat/lyric indicators
-                if not line.startswith('#'):  # Skip comment lines
+            elif in_composition or (line.startswith('b:') or line.startswith('l:') or line.startswith('#')):
+                if line.startswith('#'):
+                    section_headers.append((line_count, line))
+                elif line.startswith('b:') or line.startswith('l:'):
                     composition_lines.append(line)
+                    line_count += 1
         
         # Create instance with parsed config
         instance = cls(
@@ -245,6 +243,10 @@ class SURFileGenerator:
                 instance.builder.current_line = current_line
                 instance.builder.current_beat = len(current_line) + 1
         
+        # Add the section headers
+        for line_num, header in section_headers:
+            instance.builder.section_headers.append((line_num, header))
+        
         return instance
     
     def parse_input(self, user_input: str) -> tuple[Optional[str], Optional[str], Optional[int]]:
@@ -255,6 +257,7 @@ class SURFileGenerator:
         # Check for section header
         if user_input.startswith('#'):
             self.builder.finalize_line()  # Finish current line if any
+            self.builder.add_section_header(user_input)
             return None, None, None  # Special case for section header
             
         # Check for beat jump
@@ -275,11 +278,18 @@ class SURFileGenerator:
         notes = user_input.strip()
         if notes == '':
             notes = "-"
-        elif ' ' in notes and not (notes.startswith('{') and notes.endswith('}')):
-            # Split by space unless it's a multi-note in curly braces
-            return lyrics, notes.split(), beat_jump
+        elif ' ' in notes:
+            # Split by space and handle each note/group
+            note_groups = []
+            for note in notes.split():
+                if note.startswith('{') and note.endswith('}'):
+                    # Remove braces and keep multi-note as is
+                    note_groups.append(note[1:-1])
+                else:
+                    note_groups.append(note)
+            return lyrics, note_groups, beat_jump
             
-        # Handle multiple notes in curly braces
+        # Handle single multi-note in curly braces
         if notes and notes.startswith('{') and notes.endswith('}'):
             notes = notes[1:-1]  # Remove braces
         
