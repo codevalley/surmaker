@@ -232,10 +232,18 @@ class SURFileGenerator:
                         instance.builder.add_line(current_line)
                         current_line = []
                         beat_count = 1
-                
-        # Add any remaining beats in the last line
+        
+        # Handle the last line
         if current_line:
-            instance.builder.add_line(current_line)
+            # If it's a complete line, add it and start fresh
+            if len(current_line) == instance.builder.max_beats:
+                instance.builder.add_line(current_line)
+                instance.builder.current_line = []
+                instance.builder.current_beat = 1
+            else:
+                # If it's incomplete, set it as the current line and continue from there
+                instance.builder.current_line = current_line
+                instance.builder.current_beat = len(current_line) + 1
         
         return instance
     
@@ -243,6 +251,11 @@ class SURFileGenerator:
         """Parse user input for lyrics, notes, and beat jumps"""
         if not user_input or user_input.strip() == '-':
             return "-", "-", None
+            
+        # Check for section header
+        if user_input.startswith('#'):
+            self.builder.finalize_line()  # Finish current line if any
+            return None, None, None  # Special case for section header
             
         # Check for beat jump
         beat_jump = None
@@ -258,17 +271,20 @@ class SURFileGenerator:
             lyrics = lyrics_match.group(1)
             user_input = re.sub(r'"[^"]*"', '', user_input)
         
-        # Remaining content is notes
+        # Handle multiple beats input (space-separated)
         notes = user_input.strip()
         if notes == '':
             notes = "-"
+        elif ' ' in notes and not (notes.startswith('{') and notes.endswith('}')):
+            # Split by space unless it's a multi-note in curly braces
+            return lyrics, notes.split(), beat_jump
             
         # Handle multiple notes in curly braces
         if notes and notes.startswith('{') and notes.endswith('}'):
             notes = notes[1:-1]  # Remove braces
         
         return lyrics, notes, beat_jump
-    
+
     def generate_sur_file(self) -> str:
         output = []
         
@@ -284,9 +300,16 @@ class SURFileGenerator:
             output.append(f"{note} -> {name}")
         output.append("")
         
-        # Add COMPOSITION section
+        # Add COMPOSITION section with headers
         output.append("%% COMPOSITION")
-        output.extend(self.builder.get_formatted_composition())
+        current_section = None
+        for line in self.builder.get_formatted_composition():
+            if line.startswith('#'):
+                output.append("")  # Add blank line before section
+                output.append(line)
+                current_section = line
+            else:
+                output.append(line)
         
         return "\n".join(output)
 
@@ -296,9 +319,11 @@ def print_help():
     click.echo('2. Lyrics: Use quotes ("mo" "re")')
     click.echo('3. Both: Combine lyrics and notes ("mo" S)')
     click.echo('4. Jump to beat: Use parentheses ((4) S)')
-    click.echo('5. Multiple notes: Use curly braces ({S,R,G})')
-    click.echo('6. Empty beat: Just press Enter or type "-"')
-    click.echo('7. Special commands:')
+    click.echo('5. Multiple notes in one beat: Use curly braces ({S,R,G})')
+    click.echo('6. Multiple beats at once: Space-separated notes (S R G M P)')
+    click.echo('7. Section headers: Start with # (#Sthayi, #Antara)')
+    click.echo('8. Empty beat: Just press Enter or type "-"')
+    click.echo('9. Special commands:')
     click.echo('   - stop/exit: End composition with option to save')
     click.echo('   - quit: End composition without saving')
     click.echo('   - help: Show this help')
@@ -372,9 +397,21 @@ def main(input_file, name, raag, taal, tempo, output):
             
             # Parse and add the input
             lyrics, notes, beat_jump = generator.parse_input(user_input)
+            
+            # Handle section header
+            if lyrics is None and notes is None:
+                generator.builder.get_formatted_composition().append(user_input)
+                continue
+                
             if beat_jump:
                 generator.builder.add_empty_beats(beat_jump)
-            generator.builder.add_beat(lyrics, notes)
+                
+            # Handle multiple beats
+            if isinstance(notes, list):
+                for note in notes:
+                    generator.builder.add_beat(lyrics, note)
+            else:
+                generator.builder.add_beat(lyrics, notes)
             
     except (KeyboardInterrupt, click.Abort):
         click.echo("\nComposition aborted!")
