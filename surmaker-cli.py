@@ -51,11 +51,23 @@ class CompositionBuilder:
         if self.current_beat > self.max_beats:
             self.finalize_line()
             self.current_beat = 1
+
+    def add_line(self, beats: List[List]):
+        """Add a complete line of beats"""
+        if beats:
+            self.composition_lines.append(beats)
     
     def finalize_line(self):
         if self.current_line:
             self.composition_lines.append(self.current_line)
             self.current_line = []
+            self.current_beat = 1
+    
+    def get_total_beats(self) -> int:
+        """Calculate total number of beats in the composition"""
+        total = sum(len(line) for line in self.composition_lines)
+        total += len(self.current_line)
+        return total
     
     def get_formatted_composition(self) -> List[str]:
         self.finalize_line()  # Ensure last line is added
@@ -125,7 +137,8 @@ class CompositionBuilder:
                 display = f" {note} "
             current_line_display[i] = f"{display:3}"
 
-        return (f"Beats:  {' '.join(beat_numbers)}\n"
+        return (f"Position: {self.current_beat}/{self.max_beats}\n"
+                f"Beats:  {' '.join(beat_numbers)}\n"
                 f"       {' '.join(beats)}\n"
                 f"Notes:  {' '.join(current_line_display)}")
 
@@ -153,19 +166,36 @@ class SURFileGenerator:
         
         # Parse existing file
         config = {}
+        composition_lines = []
         in_config = False
+        in_composition = False
+        current_line = []
         
         for line in content.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+                
             if line.startswith('%% CONFIG'):
                 in_config = True
+                in_composition = False
                 continue
-            elif line.startswith('%%'):
+            elif line.startswith('%% COMPOSITION'):
                 in_config = False
+                in_composition = True
+                continue
+            elif line.startswith('%% SCALE'):
+                in_config = False
+                in_composition = False
                 continue
                 
             if in_config and ':' in line:
                 key, value = line.split(':', 1)
                 config[key.strip()] = value.strip().strip('"')
+            elif in_composition or (line.startswith('b:') or line.startswith('l:')):
+                # Include lines that are part of composition or start with beat/lyric indicators
+                if not line.startswith('#'):  # Skip comment lines
+                    composition_lines.append(line)
         
         # Create instance with parsed config
         instance = cls(
@@ -174,6 +204,38 @@ class SURFileGenerator:
             taal=config.get('taal', 'teental'),
             tempo=config.get('tempo', 'madhya')
         )
+        
+        # Parse and load existing composition
+        current_line = []
+        beat_count = 1
+        
+        for line in composition_lines:
+            if ':' in line:
+                # Parse the line content after the type indicator
+                line_content = line.split(':', 1)[1].strip()
+                # Extract beats from the line
+                beats = re.findall(r'\[(.*?)\]', line_content)
+                
+                for beat in beats:
+                    if beat == '-':
+                        current_line.append([beat_count, "-", "-"])
+                    elif ':' in beat:
+                        lyric, note = beat.split(':')
+                        current_line.append([beat_count, lyric, note])
+                    else:
+                        current_line.append([beat_count, "-", beat])
+                    
+                    beat_count += 1
+                    
+                    # When we reach max beats, add the line and reset
+                    if beat_count > instance.builder.max_beats:
+                        instance.builder.add_line(current_line)
+                        current_line = []
+                        beat_count = 1
+                
+        # Add any remaining beats in the last line
+        if current_line:
+            instance.builder.add_line(current_line)
         
         return instance
     
@@ -237,56 +299,86 @@ def print_help():
     click.echo('5. Multiple notes: Use curly braces ({S,R,G})')
     click.echo('6. Empty beat: Just press Enter or type "-"')
     click.echo('7. Special commands:')
-    click.echo('   - stop: End composition')
+    click.echo('   - stop/exit: End composition with option to save')
+    click.echo('   - quit: End composition without saving')
     click.echo('   - help: Show this help')
     click.echo('   - undo: Remove last entry')
     click.echo('   - show: Show full composition so far\n')
 
 @click.command()
-@click.option('--name', prompt='Composition name', help='Name of the composition')
-@click.option('--raag', prompt='Raag', help='Name of the raag')
-@click.option('--taal', prompt='Taal', help='Taal of the composition')
-@click.option('--tempo', prompt='Tempo', default='madhya', help='Tempo (vilambit/madhya/drut)')
-@click.option('--output', prompt='Output filename', default='composition.sur', help='Output .sur file name')
 @click.option('--input-file', help='Input .sur file to continue editing', type=click.Path(exists=True, path_type=Path))
-
-def main(name, raag, taal, tempo, output, input_file):
+@click.option('--name', help='Name of the composition', required=False)
+@click.option('--raag', help='Name of the raag', required=False)
+@click.option('--taal', help='Taal of the composition', required=False)
+@click.option('--tempo', help='Tempo (vilambit/madhya/drut)', default='madhya', required=False)
+@click.option('--output', help='Output filename', default='composition.sur')
+def main(input_file, name, raag, taal, tempo, output):
     """Interactive tool to create a .sur file"""
-    if input_file:
-        generator = SURFileGenerator.from_file(input_file)
-    else:
-        generator = SURFileGenerator(name, raag, taal, tempo)
-    
-    print_help()
-    
-    while True:
-        # Show current position with taal pattern
-        position = generator.builder.get_display_line()
-        total_beats = (len(generator.builder.composition_lines) * generator.builder.max_beats) + len(generator.builder.current_line)
+    try:
+        if input_file:
+            generator = SURFileGenerator.from_file(input_file)
+            # Use the loaded file's name as output if not specified
+            if output == 'composition.sur':
+                output = input_file.name
+        else:
+            # Only prompt for required fields if no input file
+            if not name:
+                name = click.prompt('Composition name')
+            if not raag:
+                raag = click.prompt('Raag')
+            if not taal:
+                taal = click.prompt('Taal')
+            generator = SURFileGenerator(name, raag, taal, tempo)
         
-        # Display current row with beat numbers and notes
-        click.echo(f"\n{generator.builder.display_current_row()}")
-        click.echo(f"\n{position}")
-        click.echo(f"Total beats recorded: {total_beats}")
+        print_help()
         
-        user_input = click.prompt("Enter notes/lyrics (or 'help' for format)").strip()
-        
-        if user_input.lower() == 'stop':
-            break
-        elif user_input.lower() == 'help':
-            print_help()
-            continue
-        elif user_input.lower() == 'undo':
-            if generator.builder.current_line:
-                generator.builder.current_line.pop()
-                generator.builder.current_beat -= 1
-                click.echo("Last entry removed")
-            continue
-        elif user_input.lower() == 'show':
-            click.echo("\nComposition so far:")
-            sur_content = generator.generate_sur_file()
-            click.echo(sur_content)
-            continue
+        while True:
+            # Show current position with beat numbers and entered notes
+            click.echo(f"\n{generator.builder.display_current_row()}")
+            click.echo(f"\nTotal beats recorded: {generator.builder.get_total_beats()}")
+            
+            user_input = click.prompt("Enter notes/lyrics (or 'help' for format)").strip()
+            
+            if user_input.lower() in ['stop', 'exit']:
+                if click.confirm('\nDo you want to save before exiting?', default=True):
+                    with open(output, 'w') as f:
+                        f.write(generator.generate_sur_file())
+                    click.echo(f"\nComposition saved to {output}")
+                else:
+                    click.echo("\nExiting without saving...")
+                break
+            elif user_input.lower() == 'quit':
+                if generator.builder.get_total_beats() > 0:
+                    if click.confirm('\nYou have unsaved changes. Are you sure you want to quit without saving?', default=False):
+                        click.echo("\nExiting without saving...")
+                        break
+                    continue
+                else:
+                    break
+            elif user_input.lower() == 'help':
+                print_help()
+                continue
+            elif user_input.lower() == 'undo':
+                if generator.builder.current_line:
+                    generator.builder.current_line.pop()
+                    generator.builder.current_beat -= 1
+                    click.echo("Last entry removed")
+                continue
+            elif user_input.lower() == 'show':
+                click.echo("\nComposition so far:")
+                sur_content = generator.generate_sur_file()
+                click.echo(sur_content)
+                continue
+            
+            # Parse and add the input
+            lyrics, notes, beat_jump = generator.parse_input(user_input)
+            if beat_jump:
+                generator.builder.add_empty_beats(beat_jump)
+            generator.builder.add_beat(lyrics, notes)
+            
+    except (KeyboardInterrupt, click.Abort):
+        click.echo("\nComposition aborted!")
+        return
 
 if __name__ == '__main__':
     main()
