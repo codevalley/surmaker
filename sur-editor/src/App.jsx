@@ -2,11 +2,13 @@ import SUREditorViewer from './components/SUREditorViewer'
 
 function App() {
   return (
-    <main className="min-h-screen bg-background font-sans">
-      <div className="container max-w-[1600px] mx-auto py-8 px-4">
-        <SUREditorViewer />
-      </div>
-    </main>
+    <div className="min-h-screen w-full bg-background font-sans antialiased">
+      <main className="flex-1">
+        <div className="container py-6">
+          <SUREditorViewer />
+        </div>
+      </main>
+    </div>
   )
 }
 
