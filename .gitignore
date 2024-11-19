@@ -34,3 +34,6 @@ node_modules/
 *.ipynb_checkpoints
 # Ignore local development dependencies
 .env
+# Ignore local development dependencies
+.venv
+.mypy_cache
