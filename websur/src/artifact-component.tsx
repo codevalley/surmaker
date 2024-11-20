@@ -4,6 +4,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Download, FileText } from 'lucide-react';
 
+const UPPER_DOT = '\u0307'; // Dot above: Ṡ
+const LOWER_DOT = '\u0323'; // Dot below: Ṣ
+
 const DEFAULT_SUR = `%% CONFIG
 name: "Albela Sajan"
 raag: "bhoopali"
@@ -57,6 +60,70 @@ interface BeatGridProps {
   groupSize?: number;
 }
 
+const processNote = (note: string): {
+  text: string;
+  type: 'note' | 'lyrics' | 'special';
+  display: string;
+} => {
+  // Handle special characters
+  if (note === '-') {
+    return {
+      text: note,
+      type: 'special',
+      display: '−' // Using a proper minus sign
+    };
+  }
+  if (note === '*') {
+    return {
+      text: note,
+      type: 'special',
+      display: '·' // Using a middle dot
+    };
+  }
+
+  // Check if the note is uppercase (indicating it's a musical note)
+  const isNote = /^[A-Z.'*-]+$/.test(note);
+  
+  if (!isNote) {
+    return {
+      text: note,
+      type: 'lyrics',
+      display: note
+    };
+  }
+
+  // Handle octave notation for notes
+  if (note.includes("'")) {
+    // First remove all quotes and split into characters
+    const baseNotes = note.replace(/'/g, '').split('');
+    const result = baseNotes.map((char, index) => {
+      // Check if the original note had a quote after this position
+      const originalIndex = note.indexOf(char, note.indexOf(char));
+      const nextCharInOriginal = note[originalIndex + 1];
+      
+      return nextCharInOriginal === "'" ? char + UPPER_DOT : char;
+    }).join('');
+    
+    return {
+      text: note.replace(/'/g, ""),
+      type: 'note',
+      display: result
+    };
+  } else if (note.startsWith(".")) {
+    return {
+      text: note.substring(1),
+      type: 'note',
+      display: note.substring(1).split('').map(char => char + LOWER_DOT).join('')
+    };
+  }
+
+  return {
+    text: note,
+    type: 'note',
+    display: note
+  };
+};
+
 const BeatGrid: React.FC<BeatGridProps> = ({ beats, totalBeats = 16, groupSize = 4 }) => {
   const groups = [];
   for (let i = 0; i < totalBeats; i += groupSize) {
@@ -69,21 +136,48 @@ const BeatGrid: React.FC<BeatGridProps> = ({ beats, totalBeats = 16, groupSize =
         <div key={groupIdx} className="flex-1 border-r last:border-r-0 border-gray-200">
           <div className="grid grid-cols-4">
             {group.map((beat, beatIdx) => {
-              // Convert beat to string for processing
               const beatStr = String(beat || '');
-              
-              // Handle lyrics:notes format if it's a string containing ':'
               const [lyrics, notes] = beatStr.includes(':') ? beatStr.split(':') : [null, beatStr];
+              
+              // Process notes for octave notation
+              const processedNotes = notes ? notes.split(' ').map(processNote) : [];
               
               return (
                 <div
                   key={beatIdx}
-                  className="p-1 text-center border-r last:border-r-0 border-gray-100 min-h-[2em] flex items-center justify-center"
+                  className="p-1 text-center border-r last:border-r-0 border-gray-100 min-h-[2em] flex items-center justify-center relative group"
+                  title={`Beat ${beatIdx + 1 + groupIdx * groupSize}`}
                 >
-                  <div className="text-sm">
-                    {lyrics && <div className="text-blue-600">{lyrics}</div>}
-                    {notes && <div className={lyrics ? "text-red-600" : ""}>{notes}</div>}
-                    {!beat && '-'}
+                  <div className="text-sm flex flex-col items-center">
+                    {/* Lyrics */}
+                    {lyrics && (
+                      <div className="text-blue-600 font-medium">
+                        {lyrics}
+                      </div>
+                    )}
+                    
+                    {/* Notes */}
+                    {processedNotes.length > 0 && (
+                      <div className={`font-mono ${lyrics ? "mt-0.5" : ""}`}>
+                        {processedNotes.map((n, i) => (
+                          <span 
+                            key={i} 
+                            className={`inline-block mx-0.5 ${
+                              n.type === 'note' ? 'text-black' : 
+                              n.type === 'special' ? 'text-gray-500' :
+                              'text-blue-600'
+                            }`}
+                          >
+                            {n.display}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Beat position tooltip */}
+                  <div className="absolute opacity-0 group-hover:opacity-100 bg-gray-800 text-white text-xs px-2 py-1 rounded -top-8 pointer-events-none transition-opacity">
+                    Beat {beatIdx + 1 + groupIdx * groupSize}
                   </div>
                 </div>
               );
@@ -182,11 +276,41 @@ const PDFExporter = ({ config, composition }) => {
               body { margin: 0; padding: 16px; }
               @page { size: A4; margin: 2cm; }
             }
-            .beat-grid { display: flex; margin-bottom: 8px; }
-            .beat-group { flex: 1; border-right: 1px solid #ccc; }
-            .beat-group:last-child { border-right: none; }
-            .beat { display: inline-block; width: 36px; text-align: center; }
-            .section-title { color: #2563eb; font-size: 18px; margin: 16px 0 8px; }
+            .beat-grid { 
+              display: flex; 
+              margin-bottom: 8px; 
+            }
+            .beat-group { 
+              flex: 1; 
+              border-right: 1px solid #ccc; 
+            }
+            .beat-group:last-child { 
+              border-right: none; 
+            }
+            .beat { 
+              display: inline-block; 
+              width: 32px; /* Reduced from 36px */
+              text-align: center; 
+              letter-spacing: -0.5px; /* Reduce space between letters */
+            }
+            .beat-lyrics {
+              color: #2563eb;
+              font-weight: 500;
+            }
+            .beat-notes {
+              color: #dc2626;
+              font-family: monospace;
+            }
+            .octave-indicator {
+              height: 2px;
+              background: #dc2626;
+              margin: 1px 0;
+            }
+            .section-title { 
+              color: #2563eb; 
+              font-size: 18px; 
+              margin: 16px 0 8px; 
+            }
           </style>
         </head>
         <body>
@@ -239,9 +363,41 @@ const PDFExporter = ({ config, composition }) => {
       const group = beats.slice(i, i + 4);
       html += `
         <div class="beat-group">
-          ${group.map(beat => `
-            <span class="beat">${beat || '-'}</span>
-          `).join('')}
+          ${group.map(beat => {
+            if (!beat) return '<span class="beat">-</span>';
+            
+            const [lyrics, notes] = String(beat).includes(':') ? 
+              beat.split(':') : [null, beat];
+            const processedNotes = notes ? 
+              notes.split(' ').map(processNote) : [];
+            
+            let beatHtml = '<span class="beat">';
+            
+            // Add upper octave indicator if needed
+            if (processedNotes.some(n => n.octave === "upper")) {
+              beatHtml += '<div class="octave-indicator"></div>';
+            }
+            
+            // Add lyrics if present
+            if (lyrics) {
+              beatHtml += `<div class="beat-lyrics">${lyrics}</div>`;
+            }
+            
+            // Add notes
+            if (processedNotes.length) {
+              beatHtml += `<div class="beat-notes">${
+                processedNotes.map(n => n.note).join('')
+              }</div>`;
+            }
+            
+            // Add lower octave indicator if needed
+            if (processedNotes.some(n => n.octave === "lower")) {
+              beatHtml += '<div class="octave-indicator"></div>';
+            }
+            
+            beatHtml += '</span>';
+            return beatHtml;
+          }).join('')}
         </div>
       `;
     }

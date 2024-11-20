@@ -179,18 +179,25 @@ class SURFileGenerator:
         content = filepath.read_text()
         
         # Extract metadata
-        name = re.search(r'name: "(.*?)"', content).group(1)
-        raag = re.search(r'raag: "(.*?)"', content).group(1)
-        taal = re.search(r'taal: "(.*?)"', content).group(1)
-        tempo = re.search(r'tempo: "(.*?)"', content).group(1)
-        beats_per_row = int(re.search(r'beats_per_row: "(\d+)"', 
-                                    content).group(1))
+        name = re.search(r'name: "(.*?)"', content)
+        raag = re.search(r'raag: "(.*?)"', content)
+        taal = re.search(r'taal: "(.*?)"', content)
+        tempo = re.search(r'tempo: "(.*?)"', content)
+        beats_per_row = re.search(r'beats_per_row: "(\d+)"', content)
+        
+        if not all([name, raag, taal, tempo, beats_per_row]):
+            raise ValueError("Missing required metadata in file")
         
         # Create instance
-        instance = cls(name, raag, taal, tempo, beats_per_row)
+        instance = cls(
+            name.group(1),
+            raag.group(1),
+            taal.group(1),
+            tempo.group(1),
+            int(beats_per_row.group(1))
+        )
         
         # Process composition section
-        composition_lines = []
         current_section = None
         
         for line in content.split('\n'):
@@ -202,24 +209,23 @@ class SURFileGenerator:
                 current_section = line
                 instance.builder.add_section_header(line)
             elif line.startswith('b:'):
-                beats = line[2:].strip().split()
+                # Extract beats, handling potential malformed brackets
+                line = line[2:].strip()
+                # Fix malformed brackets if needed
+                line = line.replace('][', '] [')
+                beats = re.findall(r'\[.*?\]|[^\s\[\]]+', line)
+                
                 processed_beats = []
+                beat_position = 1
                 
                 for beat in beats:
                     lyrics, notes = instance.standardize_beat(beat)
-                    if lyrics and notes:
-                        processed_beats.append([instance.builder.current_beat, 
-                                             lyrics, notes])
-                    elif lyrics:
-                        processed_beats.append([instance.builder.current_beat, 
-                                             lyrics, "-"])
-                    elif notes:
-                        processed_beats.append([instance.builder.current_beat, 
-                                             "-", notes])
-                    else:
-                        processed_beats.append([instance.builder.current_beat, 
-                                             "-", "-"])
-                    instance.builder.current_beat += 1
+                    processed_beats.append([
+                        beat_position,
+                        lyrics or "-",
+                        notes or "-"
+                    ])
+                    beat_position += 1
                 
                 if processed_beats:
                     instance.builder.add_line(processed_beats)
@@ -261,73 +267,118 @@ class SURFileGenerator:
         Only uppercase S R G M P D N are allowed."""
         return bool(re.match(r'^[SRGMPDN]+$', text))
 
+    def parse_input(self, user_input: str) -> tuple[Optional[str], Optional[str], Optional[int]]:
+        """Parse user input using the same logic as file parsing.
+        Returns (lyrics, notes, beat_jump) tuple."""
+        
+        # Handle empty input
+        if not user_input or user_input.strip() == '-':
+            return None, None, None
+        
+        # Check for beat jump notation (4)S
+        beat_jump = None
+        if user_input.startswith('('):
+            match = re.match(r'\((\d+)\)(.*)', user_input)
+            if match:
+                beat_jump = int(match.group(1))
+                user_input = match.group(2).strip()
+        
+        # Split into beats, preserving brackets
+        beats = []
+        current_beat = []
+        in_brackets = False
+        
+        for char in user_input:
+            if char == '[':
+                in_brackets = True
+            elif char == ']':
+                in_brackets = False
+                current_beat.append(char)
+                if current_beat:
+                    beats.append(''.join(current_beat))
+                    current_beat = []
+                continue
+            
+            if char == ' ' and not in_brackets:
+                if current_beat:
+                    beats.append(''.join(current_beat))
+                    current_beat = []
+            else:
+                current_beat.append(char)
+        
+        if current_beat:
+            beats.append(''.join(current_beat))
+        
+        # Process each beat
+        processed_beats = []
+        for beat in beats:
+            if beat.strip():  # Skip empty beats
+                lyrics, notes = self.standardize_beat(beat)
+                processed_beats.append((lyrics, notes))
+        
+        if len(processed_beats) > 1:
+            # Multiple beats
+            return None, processed_beats, beat_jump
+        elif processed_beats:
+            # Single beat
+            return processed_beats[0][0], processed_beats[0][1], beat_jump
+        
+        return None, None, beat_jump
+
     def standardize_beat(self, beat: str) -> tuple[Optional[str], Optional[str]]:
         """Standardize a single beat entry into (lyrics, notes) tuple.
         
-        Equivalent notations:
-        1. Compound notes with lyrics:
-           - [SR man]  -> notes="SR", lyrics="man"
-           - [S R man] -> notes="SR", lyrics="man"
-           - SR"man"   -> notes="SR", lyrics="man"
-        
-        2. Compound notes with silence:
-           - SR-G      -> notes="S R - G"
-           - [SR-G]    -> notes="S R - G"
-           - [S R - G] -> notes="S R - G"
+        Valid formats:
+        - S - R        -> Two beats: (None, "S"), (None, None), (None, "R")
+        - [SR-]        -> One beat: (None, "SR-")  # Compound note with silence
+        - [SR*]        -> One beat: (None, "SR*")  # Compound note with sustain
+        - [S * R]      -> One beat: (None, "S * R")  # Single beat with multiple notes
+        - "alb"DG      -> One beat: ("alb", "DG")  # Lyric with compound note
         """
         # Handle empty beat
         if not beat or beat == '-':
             return None, None
 
         # Handle sustain
-        if '*' in beat:
-            return self.process_sustain(beat)
+        if beat == '*':
+            return None, '*'
 
-        # Remove outer brackets if present
+        # Check if this is a bracketed beat
+        is_bracketed = beat.startswith('[') and beat.endswith(']')
         content = beat.strip('[]')
-        has_brackets = beat != content
-
-        # Split by spaces if in brackets, otherwise keep as is
-        parts = content.split() if has_brackets else [content]
         
-        # Process each part
-        all_lyrics = []
-        all_notes = []
+        # Handle empty content after removing brackets
+        if not content:
+            return None, None
         
-        for part in parts:
-            # Check for lyrics:note format
-            if ':' in part:
-                lyric, note = part.split(':', 1)
-                lyric = lyric.strip('"')  # Remove quotes if present
-                all_lyrics.append(lyric)
-                
-                # Process note part
-                if ' ' in note:  # Multiple notes after colon
-                    all_notes.extend(note.split())
-                elif '-' in note:  # Handle silence in notes
-                    all_notes.extend(note.replace('-', ' - ').split())
-                else:
-                    all_notes.append(note)
+        # First, extract any quoted lyrics
+        lyrics = None
+        if '"' in content:
+            match = re.search(r'"([^"]+)"', content)
+            if match:
+                lyrics = match.group(1)
+                # Remove the quoted part
+                content = content.replace(f'"{lyrics}"', '').strip()
+        
+        # If no quoted lyrics, check for unquoted lyrics at start
+        if not lyrics and not all(c in 'SRGMPDN.-\'* ' for c in content.split()[0]):
+            parts = content.split()
+            lyrics = parts[0]
+            content = ' '.join(parts[1:])
+        
+        # Process remaining content as notes
+        notes = None
+        if content:
+            if is_bracketed:
+                # For bracketed content, preserve exact spacing
+                notes = content.strip()
             else:
-                # Check if it's quoted (always lyrics)
-                if part.startswith('"') and part.endswith('"'):
-                    all_lyrics.append(part.strip('"'))
-                # Check if it has embedded silence
-                elif '-' in part and self.is_valid_compound_notes(part.replace('-', '')):
-                    all_notes.extend(part.replace('-', ' - ').split())
-                # Check if it's a valid note or compound notes
-                elif self.is_valid_note(part):
-                    all_notes.append(part)
-                elif self.is_valid_compound_notes(part):
-                    # Convert compound notes to space-separated notes
-                    all_notes.extend(list(part))
-                # Must be unquoted lyrics
+                # For unbracketed content, normalize spaces
+                # but only if it's not a compound note
+                if ' ' in content or '-' in content or '*' in content:
+                    notes = ' '.join(content.split())
                 else:
-                    all_lyrics.append(part)
-
-        # Combine results
-        lyrics = ' '.join(all_lyrics) if all_lyrics else None
-        notes = ' '.join(all_notes) if all_notes else None
+                    notes = content.replace(' ', '')
         
         return lyrics, notes
 
@@ -460,11 +511,24 @@ def main(input_file, name, raag, taal, tempo, beats_per_row, output, doctor):
                 click.echo(f"\nComposition cleaned and saved to {output}")
                 return
         else:
+            # Interactive mode if no command line arguments provided
             if not all([name, raag, taal]):
-                print("Please provide name, raag, and taal for new composition")
-                return
+                name = click.prompt("Enter composition name", type=str)
+                raag = click.prompt("Enter raag", type=str)
+                taal = click.prompt("Enter taal", type=str)
+                tempo = click.prompt("Enter tempo (vilambit/madhya/drut)", 
+                                   type=click.Choice(['vilambit', 'madhya', 'drut']), 
+                                   default='madhya')
+                beats_per_row = click.prompt("Enter beats per row (default based on taal)", 
+                                           type=int, 
+                                           default=TaalInfo.get_max_beats(taal))
+            
             generator = SURFileGenerator(name, raag, taal, tempo or "madhya", 
                                        beats_per_row)
+
+            # Set default output filename if not specified
+            if output is None:
+                output = f"{name.lower().replace(' ', '-')}.sur"
 
         print_help()
         
@@ -509,19 +573,15 @@ def main(input_file, name, raag, taal, tempo, beats_per_row, output, doctor):
             # Parse and add the input
             lyrics, notes, beat_jump = generator.parse_input(user_input)
             
-            # Handle section header
-            if lyrics is None and notes is None:
-                generator.builder.get_formatted_composition().append(user_input)
-                continue
-            
             if beat_jump:
                 generator.builder.add_empty_beats(beat_jump)
-                
-            # Handle multiple beats
+            
             if isinstance(notes, list):
-                for note in notes:
-                    generator.builder.add_beat(lyrics, note)
+                # Multiple beats
+                for beat_lyrics, beat_notes in notes:
+                    generator.builder.add_beat(beat_lyrics, beat_notes)
             else:
+                # Single beat
                 generator.builder.add_beat(lyrics, notes)
             
     except (KeyboardInterrupt, click.Abort):
