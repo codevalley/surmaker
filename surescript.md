@@ -116,15 +116,7 @@ b: S - R - G - M - P - D - N - S' -    // Simple notes
 b: "sa":S - "re":R - "ga":G - "ma":M -  // Lyrics with notes
 ```
 
-### 7. Beat Navigation
-
-To jump to a specific beat in the composition, use parentheses:
-```
-(4) S      // Jump to beat 4 and add note S
-(8) "sa":S // Jump to beat 8 and add lyric with note
-```
-
-### 8. Section Headers
+### 7. Section Headers
 
 Section headers are marked with a `#` prefix and help organize different parts of the composition:
 ```
