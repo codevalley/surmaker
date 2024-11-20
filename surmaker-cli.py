@@ -137,12 +137,12 @@ class CompositionBuilder:
                 f"Notes:  {' '.join(current_line_display)}")
 
 class SURFileGenerator:
-    def __init__(self, name: str, raag: str, taal: str, tempo: str = "madhya"):
+    def __init__(self, name: str, raag: str, taal: str, tempo: str = "madhya", beats_per_row: Optional[int] = None):
         self.config = {
             "name": name,
             "raag": raag.lower(),
             "taal": taal.lower(),
-            "beats_per_row": TaalInfo.get_max_beats(taal),
+            "beats_per_row": beats_per_row or TaalInfo.get_max_beats(taal),
             "tempo": tempo.lower()
         }
         self.scale = {
@@ -296,7 +296,7 @@ class SURFileGenerator:
                     sections.append((current_header, current_section))
                 current_section = []
                 current_header = line
-            elif line.startswith('b:'):
+            else:
                 # Extract beats from the line
                 line_content = line[2:].strip()
                 beats = re.findall(r'\[(.*?)\]', line_content)
@@ -414,10 +414,11 @@ def print_help():
 @click.option('--name', help='Name of the composition', required=False)
 @click.option('--raag', help='Name of the raag', required=False)
 @click.option('--taal', help='Taal of the composition', required=False)
-@click.option('--tempo', help='Tempo (vilambit/madhya/drut)', default='madhya', required=False)
+@click.option('--tempo', help='Tempo (vilambit/madhya/drut)', required=False)
+@click.option('--beats-per-row', help='Number of beats per row', type=int, required=False)
 @click.option('--output', help='Output filename', default='composition.sur')
 @click.option('--doctor', is_flag=True, help='Clean and standardize the composition format')
-def main(input_file, name, raag, taal, tempo, output, doctor):
+def main(input_file, name, raag, taal, tempo, beats_per_row, output, doctor):
     """Interactive tool to create a .sur file"""
     try:
         if input_file:
@@ -442,8 +443,14 @@ def main(input_file, name, raag, taal, tempo, output, doctor):
                 raag = click.prompt('Raag')
             if not taal:
                 taal = click.prompt('Taal')
-            generator = SURFileGenerator(name, raag, taal, tempo)
-        
+            if tempo is None:  
+                tempo = click.prompt('Tempo (vilambit/madhya/drut)', default='madhya')
+            if beats_per_row is None:
+                default_beats = TaalInfo.get_max_beats(taal)
+                beats_per_row = click.prompt(f'Beats per row (default for {taal}: {default_beats})', 
+                                          default=default_beats, type=int)
+            generator = SURFileGenerator(name, raag, taal, tempo, beats_per_row)
+
         print_help()
         
         while True:
