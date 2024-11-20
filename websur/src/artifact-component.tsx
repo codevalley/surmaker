@@ -4,8 +4,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Download, FileText } from 'lucide-react';
 
-const UPPER_DOT = '\u0307'; // Dot above: Ṡ
-const LOWER_DOT = '\u0323'; // Dot below: Ṣ
+const UPPER_BAR = '\u0304'; // Macron above: S̄
+const LOWER_BAR = '\u0332'; // Macron below: S̲
 
 const DEFAULT_SUR = `%% CONFIG
 name: "Albela Sajan"
@@ -101,7 +101,7 @@ const processNote = (note: string): {
       const originalIndex = note.indexOf(char, note.indexOf(char));
       const nextCharInOriginal = note[originalIndex + 1];
       
-      return nextCharInOriginal === "'" ? char + UPPER_DOT : char;
+      return nextCharInOriginal === "'" ? char + UPPER_BAR : char;
     }).join('');
     
     return {
@@ -113,7 +113,7 @@ const processNote = (note: string): {
     return {
       text: note.substring(1),
       type: 'note',
-      display: note.substring(1).split('').map(char => char + LOWER_DOT).join('')
+      display: note.substring(1).split('').map(char => char + LOWER_BAR).join('')
     };
   }
 
@@ -145,20 +145,20 @@ const BeatGrid: React.FC<BeatGridProps> = ({ beats, totalBeats = 16, groupSize =
               return (
                 <div
                   key={beatIdx}
-                  className="p-1 text-center border-r last:border-r-0 border-gray-100 min-h-[2em] flex items-center justify-center relative group"
+                  className="p-1 text-center border-r last:border-r-0 border-gray-100 min-h-[2em] flex items-center justify-center relative group w-[25%]"
                   title={`Beat ${beatIdx + 1 + groupIdx * groupSize}`}
                 >
-                  <div className="text-sm flex flex-col items-center">
+                  <div className="text-sm flex flex-col items-center w-full">
                     {/* Lyrics */}
                     {lyrics && (
-                      <div className="text-blue-600 font-medium">
+                      <div className="text-blue-600 font-medium w-full overflow-hidden text-center">
                         {lyrics}
                       </div>
                     )}
                     
                     {/* Notes */}
                     {processedNotes.length > 0 && (
-                      <div className={`font-mono ${lyrics ? "mt-0.5" : ""}`}>
+                      <div className={`font-mono w-full text-center ${lyrics ? "mt-0.5" : ""}`}>
                         {processedNotes.map((n, i) => (
                           <span 
                             key={i} 
@@ -267,6 +267,8 @@ const PDFExporter = ({ config, composition }) => {
 
     // Use browser's print functionality to generate PDF
     const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    
     printWindow.document.write(`
       <html>
         <head>
@@ -274,42 +276,61 @@ const PDFExporter = ({ config, composition }) => {
           <style>
             @media print {
               body { margin: 0; padding: 16px; }
-              @page { size: A4; margin: 2cm; }
+              @page { size: A4 landscape; margin: 1.5cm; }
             }
             .beat-grid { 
-              display: flex; 
-              margin-bottom: 8px; 
+              width: 100%;
+              margin-bottom: 6px;
+              display: table;
+              table-layout: fixed;
+              border-collapse: collapse;
             }
             .beat-group { 
-              flex: 1; 
-              border-right: 1px solid #ccc; 
+              display: table-cell;
+              width: 25%;
+              border-right: 1px solid #e5e7eb;
             }
             .beat-group:last-child { 
               border-right: none; 
             }
+            .beat-group-inner {
+              display: table;
+              width: 100%;
+              table-layout: fixed;
+            }
             .beat { 
-              display: inline-block; 
-              width: 32px; /* Reduced from 36px */
-              text-align: center; 
-              letter-spacing: -0.5px; /* Reduce space between letters */
+              display: table-cell;
+              width: 25%;
+              padding: 3px;
+              text-align: center;
+              border-right: 1px solid #f3f4f6;
+              vertical-align: middle;
+            }
+            .beat:last-child {
+              border-right: none;
+            }
+            .beat-content {
+              display: inline-block;
+              width: 100%;
+              text-align: center;
+              font-size: 0.875rem;
             }
             .beat-lyrics {
               color: #2563eb;
               font-weight: 500;
             }
             .beat-notes {
-              color: #dc2626;
+              color: #000000;
               font-family: monospace;
+              margin-top: 0.125rem;
             }
-            .octave-indicator {
-              height: 2px;
-              background: #dc2626;
-              margin: 1px 0;
+            .beat-special {
+              color: #666666;
             }
             .section-title { 
               color: #2563eb; 
               font-size: 18px; 
-              margin: 16px 0 8px; 
+              margin: 12px 0 6px;
             }
           </style>
         </head>
@@ -332,14 +353,10 @@ const PDFExporter = ({ config, composition }) => {
 
   const generateFormattedNotation = (composition) => {
     const beatNumbers = Array.from({ length: 16 }, (_, i) => i + 1);
-    const vibhags = ['×', '2', '3', '4', 'O', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16'];
 
     let html = `
       <div class="beat-grid">
         ${generateBeatGrid(beatNumbers)}
-      </div>
-      <div class="beat-grid">
-        ${generateBeatGrid(vibhags)}
       </div>
     `;
 
@@ -363,41 +380,30 @@ const PDFExporter = ({ config, composition }) => {
       const group = beats.slice(i, i + 4);
       html += `
         <div class="beat-group">
-          ${group.map(beat => {
-            if (!beat) return '<span class="beat">-</span>';
-            
-            const [lyrics, notes] = String(beat).includes(':') ? 
-              beat.split(':') : [null, beat];
-            const processedNotes = notes ? 
-              notes.split(' ').map(processNote) : [];
-            
-            let beatHtml = '<span class="beat">';
-            
-            // Add upper octave indicator if needed
-            if (processedNotes.some(n => n.octave === "upper")) {
-              beatHtml += '<div class="octave-indicator"></div>';
-            }
-            
-            // Add lyrics if present
-            if (lyrics) {
-              beatHtml += `<div class="beat-lyrics">${lyrics}</div>`;
-            }
-            
-            // Add notes
-            if (processedNotes.length) {
-              beatHtml += `<div class="beat-notes">${
-                processedNotes.map(n => n.note).join('')
-              }</div>`;
-            }
-            
-            // Add lower octave indicator if needed
-            if (processedNotes.some(n => n.octave === "lower")) {
-              beatHtml += '<div class="octave-indicator"></div>';
-            }
-            
-            beatHtml += '</span>';
-            return beatHtml;
-          }).join('')}
+          <div class="beat-group-inner">
+            ${group.map(beat => {
+              if (!beat) return '<div class="beat"><div class="beat-content"><span class="beat-special">−</span></div></div>';
+              
+              const beatStr = String(beat);
+              const [lyrics, notes] = beatStr.includes(':') ? beatStr.split(':') : [null, beatStr];
+              
+              return `
+                <div class="beat">
+                  <div class="beat-content">
+                    ${lyrics ? `<div class="beat-lyrics">${lyrics}</div>` : ''}
+                    ${notes ? `
+                      <div class="beat-notes">
+                        ${(() => {
+                          const processedNote = processNote(notes);
+                          return processedNote.display;
+                        })()}
+                      </div>
+                    ` : ''}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
         </div>
       `;
     }
@@ -447,18 +453,22 @@ const SUREditor = ({ content, onChange }) => {
   );
 };
 
-const SURViewer = ({ content }) => {
+const SURViewer = ({ content, hideControls = false, onTitleClick = undefined }) => {
   const { config, composition } = parseSURFile(content);
   const beatNumbers = Array.from({ length: 16 }, (_, i) => i + 1);
-  const vibhags = ['×', '2', '3', '4', 'O', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16'];
 
   return (
     <Card className="w-full">
       <CardHeader className="border-b border-gray-200">
         <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="text-2xl font-bold">{config.name || 'Untitled'}</CardTitle>
-            <div className="grid grid-cols-2 gap-4 text-sm mt-2">
+          <div 
+            className={onTitleClick ? "cursor-pointer hover:opacity-80" : ""}
+            onClick={onTitleClick}
+          >
+            <CardTitle className="text-2xl font-bold mb-2">
+              {config.name || 'Untitled'}
+            </CardTitle>
+            <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p><span className="font-semibold">Raag:</span> {config.raag}</p>
                 <p><span className="font-semibold">Taal:</span> {config.taal}</p>
@@ -469,44 +479,44 @@ const SURViewer = ({ content }) => {
               </div>
             </div>
           </div>
-          <div className="flex gap-2">
-            <PDFExporter config={config} composition={composition} />
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                const blob = new Blob([content], { type: 'text/plain' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${config.name || 'composition'}.sur`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
-              }}
-              className="flex items-center gap-2"
-            >
-              <FileText size={16} />
-              Download SUR
-            </Button>
-          </div>
+          {!hideControls && (
+            <div className="flex gap-2">
+              <PDFExporter config={config} composition={composition} />
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  const blob = new Blob([content], { type: 'text/plain' });
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${config.name || 'composition'}.sur`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  window.URL.revokeObjectURL(url);
+                }}
+                className="flex items-center gap-2"
+              >
+                <FileText size={16} />
+                Download SUR
+              </Button>
+            </div>
+          )}
         </div>
       </CardHeader>
       
       <CardContent className="p-6">
         <div className="space-y-6">
-          {/* Beat numbers row */}
-          <div className="mb-4 font-mono text-sm">
-            <div className="text-gray-600 mb-1">Beat:</div>
+          {/* Beat numbers row only */}
+          <div className="mb-3 font-mono text-sm">
+            <div className="text-gray-600 mb-0.5">Beat:</div>
             <BeatGrid beats={beatNumbers} />
-            <div className="text-gray-600 mb-1 mt-2">Vibhag:</div>
-            <BeatGrid beats={vibhags} />
           </div>
           
           {/* Composition sections */}
           {composition.map((group, groupIdx) => (
-            <div key={groupIdx} className="space-y-2">
-              <h3 className="text-lg font-semibold text-blue-600">{group.title}</h3>
+            <div key={groupIdx} className="space-y-1.5">
+              <h3 className="text-lg font-semibold text-blue-600 mb-1">{group.title}</h3>
               {group.lines.map((line, lineIdx) => (
                 <div key={lineIdx} className="font-mono text-sm">
                   <BeatGrid beats={line.beats} />
@@ -522,23 +532,40 @@ const SURViewer = ({ content }) => {
 
 const SUREditorViewer = () => {
   const [content, setContent] = useState(DEFAULT_SUR);
+  const [hideControls, setHideControls] = useState(false);
+  
+  const toggleControls = () => setHideControls(!hideControls);
   
   return (
     <div className="max-w-6xl mx-auto p-4">
-      <Tabs defaultValue="edit" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="edit">Edit</TabsTrigger>
-          <TabsTrigger value="preview">Preview</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="edit">
-          <SUREditor content={content} onChange={setContent} />
-        </TabsContent>
-        
-        <TabsContent value="preview">
-          <SURViewer content={content} />
-        </TabsContent>
-      </Tabs>
+      <div className={hideControls ? 'hidden' : ''}>
+        <Tabs defaultValue="edit" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="edit">Edit</TabsTrigger>
+            <TabsTrigger value="preview">Preview</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="edit">
+            <SUREditor content={content} onChange={setContent} />
+          </TabsContent>
+          
+          <TabsContent value="preview">
+            <SURViewer 
+              content={content} 
+              hideControls={false}
+              onTitleClick={toggleControls}
+            />
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      <div className={hideControls ? 'mt-0' : 'hidden'}>
+        <SURViewer 
+          content={content} 
+          hideControls={true}
+          onTitleClick={toggleControls}
+        />
+      </div>
     </div>
   );
 };
