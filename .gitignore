@@ -37,3 +37,4 @@ node_modules/
 # Ignore local development dependencies
 .venv
 .mypy_cache
+venv/
