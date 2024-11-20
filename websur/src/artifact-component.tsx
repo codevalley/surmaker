@@ -51,9 +51,53 @@ b: [pa][a][oo][-][re][-][Al][be][-][la][-][sa][-][ja][nn][-]
 b: [-][aa][-][oo][-][re][-][be][-][la][-][sa][-][ja][nn][-]
 b: [aa][-][oo][-][re][-][-][-][-][-][-][-][-][-][-][-]`;
 
-const parseSURFile = (content) => {
-  const sections = {};
-  let currentSection = null;
+interface BeatGridProps {
+  beats: (string | number)[];
+  totalBeats?: number;
+  groupSize?: number;
+}
+
+const BeatGrid: React.FC<BeatGridProps> = ({ beats, totalBeats = 16, groupSize = 4 }) => {
+  const groups = [];
+  for (let i = 0; i < totalBeats; i += groupSize) {
+    groups.push(beats.slice(i, i + groupSize));
+  }
+  
+  return (
+    <div className="flex w-full">
+      {groups.map((group, groupIdx) => (
+        <div key={groupIdx} className="flex-1 border-r last:border-r-0 border-gray-200">
+          <div className="grid grid-cols-4">
+            {group.map((beat, beatIdx) => {
+              // Convert beat to string for processing
+              const beatStr = String(beat || '');
+              
+              // Handle lyrics:notes format if it's a string containing ':'
+              const [lyrics, notes] = beatStr.includes(':') ? beatStr.split(':') : [null, beatStr];
+              
+              return (
+                <div
+                  key={beatIdx}
+                  className="p-1 text-center border-r last:border-r-0 border-gray-100 min-h-[2em] flex items-center justify-center"
+                >
+                  <div className="text-sm">
+                    {lyrics && <div className="text-blue-600">{lyrics}</div>}
+                    {notes && <div className={lyrics ? "text-red-600" : ""}>{notes}</div>}
+                    {!beat && '-'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const parseSURFile = (content: string) => {
+  const sections: Record<string, string[]> = {};
+  let currentSection: string | null = null;
   
   content.split('\n').forEach(line => {
     if (line.startsWith('%%')) {
@@ -65,14 +109,14 @@ const parseSURFile = (content) => {
   });
   
   // Parse config into object
-  const config = {};
+  const config: Record<string, string> = {};
   sections.config?.forEach(line => {
     const [key, value] = line.split(':').map(s => s.trim().replace(/"/g, ''));
     config[key] = value;
   });
   
   // Parse composition into structured format
-  const composition = [];
+  const composition: Array<{ title: string; lines: Array<{ type: string; beats: string[] }> }> = [];
   let currentGroup = null;
   
   sections.composition?.forEach(line => {
@@ -81,31 +125,28 @@ const parseSURFile = (content) => {
       composition.push(currentGroup);
     } else if (currentGroup && line.trim()) {
       const [type, content] = line.split(':').map(s => s.trim());
-      const beats = content.match(/\[(.*?)\]/g)?.map(beat => beat.slice(1, -1)) || [];
+      let beats: string[];
+      
+      // Check if content uses bracketed format
+      if (content.includes('[')) {
+        // Parse bracketed format
+        beats = content.match(/\[(.*?)\]/g)?.map(beat => beat.slice(1, -1)) || [];
+      } else {
+        // Parse space-separated format
+        beats = content.trim().split(/\s+/).map(beat => {
+          // Handle quoted lyrics with spaces
+          if (beat.startsWith('"') && beat.endsWith('"')) {
+            return beat.slice(1, -1);
+          }
+          return beat;
+        });
+      }
+      
       currentGroup.lines.push({ type, beats });
     }
   });
   
   return { config, composition };
-};
-
-const BeatGrid = ({ beats, totalBeats = 16, groupSize = 4 }) => {
-  const groups = [];
-  for (let i = 0; i < totalBeats; i += groupSize) {
-    groups.push(beats.slice(i, i + groupSize));
-  }
-  
-  return (
-    <div className="flex w-full">
-      {groups.map((group, groupIdx) => (
-        <div key={groupIdx} className="flex-1 border-r last:border-r-0 border-gray-200">
-          {group.map((beat, idx) => (
-            <span key={idx} className="inline-block w-12 text-center">{beat || '-'}</span>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
 };
 
 const PDFExporter = ({ config, composition }) => {

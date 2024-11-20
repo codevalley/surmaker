@@ -137,7 +137,7 @@ class CompositionBuilder:
                 f"Notes:  {' '.join(current_line_display)}")
 
 class SURFileGenerator:
-    def __init__(self, name: str, raag: str, taal: str, tempo: str = "madhya", beats_per_row: Optional[int] = None):
+    def __init__(self, name: str, raag: str, taal: str, tempo: str = "madhya", beats_per_row: Optional[int] = None, use_case: bool = False):
         self.config = {
             "name": name,
             "raag": raag.lower(),
@@ -152,107 +152,37 @@ class SURFileGenerator:
             "D": "Shuddha Dha", "n": "Komal Ni", "N": "Shuddha Ni"
         }
         self.builder = CompositionBuilder(taal)
+        self.use_case = use_case
     
     @classmethod
     def from_file(cls, filepath: Path) -> 'SURFileGenerator':
         """Create a SURFileGenerator instance from an existing .sur file"""
         content = filepath.read_text()
         
-        # Parse existing file
-        config = {}
-        composition_lines = []
-        in_config = False
-        in_composition = False
-        current_line = []
-        section_headers = []
-        line_count = 0
+        # Extract metadata
+        name = re.search(r'name: "(.*?)"', content).group(1)
+        raag = re.search(r'raag: "(.*?)"', content).group(1)
+        taal = re.search(r'taal: "(.*?)"', content).group(1)
+        tempo = re.search(r'tempo: "(.*?)"', content).group(1)
+        beats_per_row = int(re.search(r'beats_per_row: "(\d+)"', content).group(1))
         
-        for line in content.split('\n'):
-            line = line.strip()
-            if not line:
-                continue
-                
-            if line.startswith('%% CONFIG'):
-                in_config = True
-                in_composition = False
-                continue
-            elif line.startswith('%% COMPOSITION'):
-                in_config = False
-                in_composition = True
-                continue
-            elif line.startswith('%% SCALE'):
-                in_config = False
-                in_composition = False
-                continue
-                
-            if in_config and ':' in line:
-                key, value = line.split(':', 1)
-                config[key.strip()] = value.strip().strip('"')
-            elif in_composition or (line.startswith('b:') or line.startswith('l:') or line.startswith('#')):
-                if line.startswith('#'):
-                    section_headers.append((line_count, line))
-                elif line.startswith('b:') or line.startswith('l:'):
-                    composition_lines.append(line)
-                    line_count += 1
+        # Create instance
+        instance = cls(name, raag, taal, tempo, beats_per_row)
         
-        # Create instance with parsed config
-        instance = cls(
-            name=config.get('name', 'Untitled'),
-            raag=config.get('raag', 'unknown'),
-            taal=config.get('taal', 'teental'),
-            tempo=config.get('tempo', 'madhya')
-        )
-        
-        # Parse and load existing composition
-        current_line = []
-        beat_count = 1
-        
-        for line in composition_lines:
-            if ':' in line:
-                # Parse the line content after the type indicator
-                line_content = line.split(':', 1)[1].strip()
-                # Extract beats from the line
-                beats = re.findall(r'\[(.*?)\]', line_content)
-                
-                for beat in beats:
-                    if beat == '-':
-                        current_line.append([beat_count, "-", "-"])
-                    elif ':' in beat:
-                        lyric, note = beat.split(':')
-                        current_line.append([beat_count, lyric, note])
-                    else:
-                        current_line.append([beat_count, "-", beat])
-                    
-                    beat_count += 1
-                    
-                    # When we reach max beats, add the line and reset
-                    if beat_count > instance.builder.max_beats:
-                        instance.builder.add_line(current_line)
-                        current_line = []
-                        beat_count = 1
-        
-        # Handle the last line
-        if current_line:
-            # If it's a complete line, add it and start fresh
-            if len(current_line) == instance.builder.max_beats:
-                instance.builder.add_line(current_line)
-                instance.builder.current_line = []
-                instance.builder.current_beat = 1
-            else:
-                # If it's incomplete, set it as the current line and continue from there
-                instance.builder.current_line = current_line
-                instance.builder.current_beat = len(current_line) + 1
-        
-        # Add the section headers
-        for line_num, header in section_headers:
-            instance.builder.section_headers.append((line_num, header))
+        # Extract composition
+        composition_match = re.search(r'%% COMPOSITION\n(.*)', content, re.DOTALL)
+        if composition_match:
+            instance.config['composition'] = composition_match.group(1).strip()
         
         return instance
     
     def is_valid_note(self, text: str) -> bool:
         """Check if the given text is a valid note or compound note"""
-        valid_notes = set("SRGMPDNsrgmpdn")
-        return all(char in valid_notes for char in text)
+        # In case-sensitive mode, only uppercase letters are considered notes
+        if self.use_case:
+            return bool(re.match(r'^[SRGMPDN]+$', text))
+        # In normal mode, any case of SRGMPDN is considered a note
+        return bool(re.match(r'^[SRGMPDNsrgmpdn]+$', text))
 
     def standardize_beat(self, beat: str) -> tuple[Optional[str], Optional[str]]:
         """Standardize a single beat entry into (lyrics, notes) tuple"""
@@ -263,193 +193,170 @@ class SURFileGenerator:
         # If already properly formatted with quotes, extract lyrics and notes
         lyrics_match = re.search(r'"([^"]*)"', beat)
         if lyrics_match:
-            lyrics = lyrics_match.group(1).lower()
+            lyrics = lyrics_match.group(1).lower()  # Always lowercase quoted lyrics
             remaining = re.sub(r'"[^"]*"', '', beat).strip()
-            notes = remaining.upper() if remaining else None
-            return lyrics, notes
+            if remaining:
+                if self.use_case:
+                    # In case-sensitive mode, only uppercase is treated as notes
+                    return lyrics, remaining if self.is_valid_note(remaining) else remaining.lower()
+                else:
+                    return lyrics, remaining.upper()
+            return lyrics, None
 
         # Handle curly brace notation - convert to compound notes
         if '{' in beat and '}' in beat:
-            notes = beat.strip('{}').replace(',', '').upper()
-            return None, notes
+            notes = beat.strip('{}').replace(',', '')
+            if self.use_case:
+                # In case-sensitive mode, only uppercase is treated as notes
+                return None, notes if self.is_valid_note(notes) else notes.lower()
+            return None, notes.upper()
 
-        # If it's a valid note or compound note, return as notes
+        # If it's a valid note, return as notes
         if self.is_valid_note(beat):
+            if self.use_case:
+                # In case-sensitive mode, only uppercase is treated as notes
+                return None, beat if beat.isupper() else beat.lower()
             return None, beat.upper()
 
-        # If we get here, it's likely lyrics without quotes
+        # If we get here, it's lyrics
         return beat.lower(), None
 
     def doctor_composition(self) -> None:
         """Clean and standardize the composition"""
         # Get all lines
-        formatted_lines = self.builder.get_formatted_composition()
+        lines = []
+        current_section = None
+        current_beats = []
         
-        # Process sections independently
-        sections = []
-        current_section = []
-        current_header = None
-        
-        for line in formatted_lines:
+        for line in self.builder.get_formatted_composition():
+            line = line.strip()
+            if not line:
+                continue
+                
             if line.startswith('#'):
-                if current_section:
-                    sections.append((current_header, current_section))
-                current_section = []
-                current_header = line
-            else:
-                # Extract beats from the line
-                line_content = line[2:].strip()
-                beats = re.findall(r'\[(.*?)\]', line_content)
-                current_section.extend(beats)
-        
-        # Don't forget the last section
-        if current_section:
-            sections.append((current_header, current_section))
-        
-        # Clear existing composition
-        self.builder = CompositionBuilder(self.config['taal'])
-        
-        # Process each section
-        for header, beats in sections:
-            if header:
-                self.builder.add_section_header(header)
-            
-            # Process each beat
-            for beat in beats:
-                if beat == '-':
-                    lyrics, notes = None, None
-                else:
+                # Handle section header
+                if current_beats:
+                    lines.append((current_section, current_beats))
+                    current_beats = []
+                current_section = line
+            elif line.startswith('b:'):
+                # Handle beat line
+                beats = line[2:].strip().split()
+                processed_beats = []
+                
+                for beat in beats:
+                    if beat == '-':
+                        processed_beats.append('-')
+                        continue
+                        
                     lyrics, notes = self.standardize_beat(beat)
-                self.builder.add_beat(lyrics, notes)
-            
-            # Ensure the section ends on a complete row by adding empty beats
-            total_beats = self.builder.get_total_beats()
-            beats_per_row = self.config['beats_per_row']
-            if total_beats % beats_per_row != 0:
-                remaining = beats_per_row - (total_beats % beats_per_row)
-                for _ in range(remaining):
-                    self.builder.add_beat(None, None)
-
-    def parse_input(self, user_input: str) -> tuple[Optional[str], Optional[str], Optional[int]]:
-        """Parse user input for lyrics, notes, and beat jumps"""
-        if not user_input or user_input.strip() == '-':
-            return "-", "-", None
-            
-        # Check for section header
-        if user_input.startswith('#'):
-            self.builder.finalize_line()  # Finish current line if any
-            self.builder.add_section_header(user_input)
-            return None, None, None  # Special case for section header
-            
-        # Check for beat jump
-        beat_jump = None
-        beat_match = re.search(r'\((\d+)\)', user_input)
-        if beat_match:
-            beat_jump = int(beat_match.group(1))
-            user_input = re.sub(r'\(\d+\)', '', user_input)
-
-        # Handle multiple beats input (space-separated)
-        parts = user_input.strip().split()
-        if len(parts) > 1:
-            beats = []
-            for part in parts:
-                lyrics, notes = self.standardize_beat(part)
-                if lyrics:
-                    beats.append(f'"{lyrics}"')
-                if notes:
-                    beats.append(notes)
-            return None, beats, beat_jump
-
-        # Handle single beat
-        lyrics, notes = self.standardize_beat(user_input)
-        return lyrics, notes, beat_jump
+                    if lyrics and notes:
+                        processed_beats.append(f'"{lyrics}":{notes}')
+                    elif lyrics:
+                        processed_beats.append(f'"{lyrics}"')
+                    elif notes:
+                        processed_beats.append(notes)
+                    else:
+                        processed_beats.append('-')
+                
+                current_beats.append(processed_beats)
+        
+        # Add the last section
+        if current_beats:
+            lines.append((current_section, current_beats))
+        
+        # Update the composition with cleaned version
+        cleaned_lines = []
+        for section, beats in lines:
+            if section:
+                cleaned_lines.append(f"\n{section}")
+            for beat_line in beats:
+                cleaned_lines.append(f"b: {' '.join(beat_line)}")
+        
+        self.builder.composition_lines = []
+        self.builder.current_line = []
+        self.builder.current_beat = 1
+        self.builder.section_headers = []
+        
+        for line in cleaned_lines:
+            if line.startswith('#'):
+                self.builder.add_section_header(line)
+            elif line.startswith('b:'):
+                beats = line[2:].strip().split()
+                processed_beats = []
+                
+                for beat in beats:
+                    if beat == '-':
+                        processed_beats.append([self.builder.current_beat, '-', '-'])
+                        self.builder.current_beat += 1
+                    else:
+                        if ':' in beat:
+                            lyrics, notes = beat.split(':')
+                            processed_beats.append([self.builder.current_beat, lyrics, notes])
+                        else:
+                            processed_beats.append([self.builder.current_beat, '-', beat])
+                        self.builder.current_beat += 1
+                
+                self.builder.add_line(processed_beats)
 
     def generate_sur_file(self) -> str:
+        """Generate the .sur file content"""
         output = []
         
-        # Add CONFIG section
+        # Add metadata
         output.append("%% CONFIG")
-        for key, value in self.config.items():
-            output.append(f"{key}: \"{value}\"")
+        output.append(f'name: "{self.config["name"]}"')
+        output.append(f'raag: "{self.config["raag"]}"')
+        output.append(f'taal: "{self.config["taal"]}"')
+        output.append(f'beats_per_row: "{self.config["beats_per_row"]}"')
+        output.append(f'tempo: "{self.config["tempo"]}"')
         output.append("")
         
-        # Add SCALE section
+        # Add scale
         output.append("%% SCALE")
         for note, name in self.scale.items():
             output.append(f"{note} -> {name}")
         output.append("")
         
-        # Add COMPOSITION section with headers
+        # Add composition
         output.append("%% COMPOSITION")
-        current_section = None
-        for line in self.builder.get_formatted_composition():
-            if line.startswith('#'):
-                output.append("")  # Add blank line before section
-                output.append(line)
-                current_section = line
-            else:
-                output.append(line)
+        if 'composition' in self.config and self.config['composition']:
+            output.append(self.config['composition'])
         
-        return "\n".join(output)
-
-def print_help():
-    click.echo("\nInput format help:")
-    click.echo('1. Notes: Just type the note (S R G M P D N)')
-    click.echo('2. Lyrics: Use quotes ("mo" "re")')
-    click.echo('3. Both: Combine lyrics and notes ("mo" S)')
-    click.echo('4. Jump to beat: Use parentheses ((4) S)')
-    click.echo('5. Multiple notes in one beat: Use curly braces ({S,R,G})')
-    click.echo('6. Multiple beats at once: Space-separated notes (S R G M P)')
-    click.echo('7. Section headers: Start with # (#Sthayi, #Antara)')
-    click.echo('8. Empty beat: Just press Enter or type "-"')
-    click.echo('9. Special commands:')
-    click.echo('   - stop/exit: End composition with option to save')
-    click.echo('   - quit: End composition without saving')
-    click.echo('   - help: Show this help')
-    click.echo('   - undo: Remove last entry')
-    click.echo('   - show: Show full composition so far\n')
+        return '\n'.join(output)
 
 @click.command()
-@click.option('--input-file', help='Input .sur file to continue editing', type=click.Path(exists=True, path_type=Path))
-@click.option('--name', help='Name of the composition', required=False)
-@click.option('--raag', help='Name of the raag', required=False)
-@click.option('--taal', help='Taal of the composition', required=False)
-@click.option('--tempo', help='Tempo (vilambit/madhya/drut)', required=False)
-@click.option('--beats-per-row', help='Number of beats per row', type=int, required=False)
-@click.option('--output', help='Output filename', default='composition.sur')
-@click.option('--doctor', is_flag=True, help='Clean and standardize the composition format')
-def main(input_file, name, raag, taal, tempo, beats_per_row, output, doctor):
+@click.option('--input-file', help='Input .sur file to continue editing', type=click.Path(exists=True))
+@click.option('--name', '-n', help='Name of the composition')
+@click.option('--raag', '-r', help='Raag of the composition')
+@click.option('--taal', '-t', help='Taal of the composition')
+@click.option('--tempo', help='Tempo of the composition (vilambit/madhya/drut)')
+@click.option('--beats-per-row', type=int, help='Number of beats per row')
+@click.option('--output', '-o', help='Output file path')
+@click.option('--doctor', is_flag=True, help='Fix formatting of an existing .sur file')
+@click.option('--use-case', is_flag=True, help='Honor case sensitivity for lyrics/notes identification')
+def main(input_file, name, raag, taal, tempo, beats_per_row, output, doctor, use_case):
     """Interactive tool to create a .sur file"""
     try:
         if input_file:
-            generator = SURFileGenerator.from_file(input_file)
-            # Use the loaded file's name as output if not specified
-            if output == 'composition.sur':
-                output = input_file.name
+            generator = SURFileGenerator.from_file(Path(input_file))
+            generator.use_case = use_case  # Set use_case flag for existing files
             
-            # Apply doctor if requested
+            # Use the loaded file's name as output if not specified
+            if output is None:
+                output = input_file
+            
             if doctor:
                 generator.doctor_composition()
                 with open(output, 'w') as f:
                     f.write(generator.generate_sur_file())
                 click.echo(f"\nComposition cleaned and saved to {output}")
                 return
-        
-        if not input_file:
-            # Only prompt for required fields if no input file
-            if not name:
-                name = click.prompt('Composition name')
-            if not raag:
-                raag = click.prompt('Raag')
-            if not taal:
-                taal = click.prompt('Taal')
-            if tempo is None:  
-                tempo = click.prompt('Tempo (vilambit/madhya/drut)', default='madhya')
-            if beats_per_row is None:
-                default_beats = TaalInfo.get_max_beats(taal)
-                beats_per_row = click.prompt(f'Beats per row (default for {taal}: {default_beats})', 
-                                          default=default_beats, type=int)
-            generator = SURFileGenerator(name, raag, taal, tempo, beats_per_row)
+        else:
+            if not all([name, raag, taal]):
+                print("Please provide name, raag, and taal for new composition")
+                return
+            generator = SURFileGenerator(name, raag, taal, tempo or "madhya", beats_per_row, use_case)
 
         print_help()
         
@@ -512,6 +419,23 @@ def main(input_file, name, raag, taal, tempo, beats_per_row, output, doctor):
     except (KeyboardInterrupt, click.Abort):
         click.echo("\nComposition aborted!")
         return
+
+def print_help():
+    click.echo("\nInput format help:")
+    click.echo('1. Notes: Just type the note (S R G M P D N)')
+    click.echo('2. Lyrics: Use quotes ("mo" "re")')
+    click.echo('3. Both: Combine lyrics and notes ("mo" S)')
+    click.echo('4. Jump to beat: Use parentheses ((4) S)')
+    click.echo('5. Multiple notes in one beat: Use curly braces ({S,R,G})')
+    click.echo('6. Multiple beats at once: Space-separated notes (S R G M P)')
+    click.echo('7. Section headers: Start with # (#Sthayi, #Antara)')
+    click.echo('8. Empty beat: Just press Enter or type "-"')
+    click.echo('9. Special commands:')
+    click.echo('   - stop/exit: End composition with option to save')
+    click.echo('   - quit: End composition without saving')
+    click.echo('   - help: Show this help')
+    click.echo('   - undo: Remove last entry')
+    click.echo('   - show: Show full composition so far\n')
 
 if __name__ == '__main__':
     main()
