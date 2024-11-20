@@ -249,6 +249,87 @@ class SURFileGenerator:
         
         return instance
     
+    def is_valid_note(self, text: str) -> bool:
+        """Check if the given text is a valid note or compound note"""
+        valid_notes = set("SRGMPDNsrgmpdn")
+        return all(char in valid_notes for char in text)
+
+    def standardize_beat(self, beat: str) -> tuple[Optional[str], Optional[str]]:
+        """Standardize a single beat entry into (lyrics, notes) tuple"""
+        # Handle empty beat
+        if not beat or beat == '-':
+            return None, None
+
+        # If already properly formatted with quotes, extract lyrics and notes
+        lyrics_match = re.search(r'"([^"]*)"', beat)
+        if lyrics_match:
+            lyrics = lyrics_match.group(1).lower()
+            remaining = re.sub(r'"[^"]*"', '', beat).strip()
+            notes = remaining.upper() if remaining else None
+            return lyrics, notes
+
+        # Handle curly brace notation - convert to compound notes
+        if '{' in beat and '}' in beat:
+            notes = beat.strip('{}').replace(',', '').upper()
+            return None, notes
+
+        # If it's a valid note or compound note, return as notes
+        if self.is_valid_note(beat):
+            return None, beat.upper()
+
+        # If we get here, it's likely lyrics without quotes
+        return beat.lower(), None
+
+    def doctor_composition(self) -> None:
+        """Clean and standardize the composition"""
+        # Get all lines
+        formatted_lines = self.builder.get_formatted_composition()
+        
+        # Process sections independently
+        sections = []
+        current_section = []
+        current_header = None
+        
+        for line in formatted_lines:
+            if line.startswith('#'):
+                if current_section:
+                    sections.append((current_header, current_section))
+                current_section = []
+                current_header = line
+            elif line.startswith('b:'):
+                # Extract beats from the line
+                line_content = line[2:].strip()
+                beats = re.findall(r'\[(.*?)\]', line_content)
+                current_section.extend(beats)
+        
+        # Don't forget the last section
+        if current_section:
+            sections.append((current_header, current_section))
+        
+        # Clear existing composition
+        self.builder = CompositionBuilder(self.config['taal'])
+        
+        # Process each section
+        for header, beats in sections:
+            if header:
+                self.builder.add_section_header(header)
+            
+            # Process each beat
+            for beat in beats:
+                if beat == '-':
+                    lyrics, notes = None, None
+                else:
+                    lyrics, notes = self.standardize_beat(beat)
+                self.builder.add_beat(lyrics, notes)
+            
+            # Ensure the section ends on a complete row by adding empty beats
+            total_beats = self.builder.get_total_beats()
+            beats_per_row = self.config['beats_per_row']
+            if total_beats % beats_per_row != 0:
+                remaining = beats_per_row - (total_beats % beats_per_row)
+                for _ in range(remaining):
+                    self.builder.add_beat(None, None)
+
     def parse_input(self, user_input: str) -> tuple[Optional[str], Optional[str], Optional[int]]:
         """Parse user input for lyrics, notes, and beat jumps"""
         if not user_input or user_input.strip() == '-':
@@ -266,33 +347,21 @@ class SURFileGenerator:
         if beat_match:
             beat_jump = int(beat_match.group(1))
             user_input = re.sub(r'\(\d+\)', '', user_input)
-        
-        # Check for lyrics (in quotes)
-        lyrics = None
-        lyrics_match = re.search(r'"([^"]*)"', user_input)
-        if lyrics_match:
-            lyrics = lyrics_match.group(1)
-            user_input = re.sub(r'"[^"]*"', '', user_input)
-        
+
         # Handle multiple beats input (space-separated)
-        notes = user_input.strip()
-        if notes == '':
-            notes = "-"
-        elif ' ' in notes:
-            # Split by space and handle each note/group
-            note_groups = []
-            for note in notes.split():
-                if note.startswith('{') and note.endswith('}'):
-                    # Remove braces and keep multi-note as is
-                    note_groups.append(note[1:-1])
-                else:
-                    note_groups.append(note)
-            return lyrics, note_groups, beat_jump
-            
-        # Handle single multi-note in curly braces
-        if notes and notes.startswith('{') and notes.endswith('}'):
-            notes = notes[1:-1]  # Remove braces
-        
+        parts = user_input.strip().split()
+        if len(parts) > 1:
+            beats = []
+            for part in parts:
+                lyrics, notes = self.standardize_beat(part)
+                if lyrics:
+                    beats.append(f'"{lyrics}"')
+                if notes:
+                    beats.append(notes)
+            return None, beats, beat_jump
+
+        # Handle single beat
+        lyrics, notes = self.standardize_beat(user_input)
         return lyrics, notes, beat_jump
 
     def generate_sur_file(self) -> str:
@@ -347,7 +416,8 @@ def print_help():
 @click.option('--taal', help='Taal of the composition', required=False)
 @click.option('--tempo', help='Tempo (vilambit/madhya/drut)', default='madhya', required=False)
 @click.option('--output', help='Output filename', default='composition.sur')
-def main(input_file, name, raag, taal, tempo, output):
+@click.option('--doctor', is_flag=True, help='Clean and standardize the composition format')
+def main(input_file, name, raag, taal, tempo, output, doctor):
     """Interactive tool to create a .sur file"""
     try:
         if input_file:
@@ -355,7 +425,16 @@ def main(input_file, name, raag, taal, tempo, output):
             # Use the loaded file's name as output if not specified
             if output == 'composition.sur':
                 output = input_file.name
-        else:
+            
+            # Apply doctor if requested
+            if doctor:
+                generator.doctor_composition()
+                with open(output, 'w') as f:
+                    f.write(generator.generate_sur_file())
+                click.echo(f"\nComposition cleaned and saved to {output}")
+                return
+        
+        if not input_file:
             # Only prompt for required fields if no input file
             if not name:
                 name = click.prompt('Composition name')
@@ -412,7 +491,7 @@ def main(input_file, name, raag, taal, tempo, output):
             if lyrics is None and notes is None:
                 generator.builder.get_formatted_composition().append(user_input)
                 continue
-                
+            
             if beat_jump:
                 generator.builder.add_empty_beats(beat_jump)
                 
