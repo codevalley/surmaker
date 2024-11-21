@@ -219,3 +219,177 @@ b: [albe:S -]  // Comments can explain the beat
 - Files should use UTF-8 encoding
 - Line endings can be either LF or CRLF
 - File extension should be `.sur`
+
+## Notation Simplification
+
+SureScript follows the principle of using the simplest possible notation that preserves the musical meaning. When multiple equivalent notations are possible, prefer the simpler form.
+
+### 1. Basic Simplification Rules
+
+- Prefer no brackets over brackets when possible
+- Prefer no quotes around lyrics when possible
+- Prefer compound notes without spaces
+- Only use brackets/quotes when needed to preserve meaning
+
+### 2. Equivalent Notations (Simplest First)
+
+#### Simple Notes and Compounds
+1. `SRG`         // Simplest - compound notes without brackets
+2. `[SRG]`       // Same meaning, but with unnecessary brackets
+3. `[SR G]`      // Same meaning, but with unnecessary space and brackets
+4. `[S R G]`     // Most verbose form
+
+#### Notes with Lyrics
+1. `[SRG man]`   // Simplest - compound notes with unquoted lyrics
+2. `[SRG "man"]` // Same, but with unnecessary quotes
+3. `SRG"man"`    // Alternative form, acceptable but less clear
+4. `[S R G man]` // Most verbose form
+
+#### Lyrics with Specific Notes
+1. `[man:G G G]` // Lyrics attached to first G, followed by two G's
+2. `["man":G G G]` // Same, but with unnecessary quotes
+3. `[man:GGG]`   // Different meaning! All notes attached to lyrics
+
+#### Compound Notes with Silence
+1. `SR-G`        // Simplest - compound with embedded silence
+2. `[SR-G]`      // Same, but with unnecessary brackets
+3. `[S R - G]`   // Most verbose form
+
+### 3. When to Use Complex Notation
+
+Use more complex notation only when needed to preserve meaning:
+
+1. Use brackets when:
+   - Mixing lyrics and notes in one beat
+   - Specifying which notes lyrics attach to
+   - Representing complex patterns with silence/sustain
+
+2. Use quotes when:
+   - Lyrics contain special characters
+   - Lyrics could be confused with notes
+   - Lyrics contain spaces
+
+3. Use spaces when:
+   - Showing explicit separation between notes
+   - Making complex patterns more readable
+   - Indicating specific timing within a beat
+
+### 4. Examples of Proper Simplification
+
+```
+// Simple notes
+SRG         ✓ (preferred)
+[SRG]       ✗ (unnecessary brackets)
+[S R G]     ✗ (unnecessary brackets and spaces)
+
+// Notes with lyrics
+[SRG man]   ✓ (preferred)
+[SRG "man"] ✗ (unnecessary quotes)
+[S R G man] ✗ (unnecessary spaces)
+
+// Lyrics with specific notes
+[man:G G G] ✓ (preferred - lyrics with first G)
+[man:GGG]   ✓ (different meaning - lyrics with all notes)
+["man":G G G] ✗ (unnecessary quotes)
+
+// Compound with silence
+SR-G        ✓ (preferred)
+[SR-G]      ✗ (unnecessary brackets)
+[S R - G]   ✗ (unnecessary brackets and spaces)
+```
+
+Note: The doctor command in SureScript tools should automatically convert more complex notations to their simplest equivalent form when the meaning is preserved.
+
+## Bracket Precedence and Parsing
+
+Brackets `[]` in SureScript serve as beat delimiters and should be parsed first, similar to how parentheses work in arithmetic (BODMAS). This helps in disambiguating complex musical patterns.
+
+### 1. Parsing Order
+
+1. First level: Identify beats by brackets `[]`
+2. Second level: Within each bracketed beat, parse:
+   - Lyrics with notes (using `:`)
+   - Compound notes
+   - Silence (`-`)
+   - Sustain (`*`)
+
+### 2. Examples of Parsing Strategy
+
+```
+// Simple cases (no brackets needed)
+b: SRG         // Single compound note
+b: S - G       // Three distinct beats
+
+// Complex cases (brackets required)
+b: [SRG man]   // Single beat: compound notes with lyrics
+b: [S:aa R:ee] // Single beat: multiple note-lyric pairs
+
+// Mixed cases
+b: SRG [P:aa D:ee] MG  // Three beats:
+                       // 1. compound notes SRG
+                       // 2. bracketed beat with lyrics
+                       // 3. compound notes MG
+
+// Nested elements
+b: [SRG man] - [P:aa D N]  // Three beats:
+                           // 1. compound with lyrics
+                           // 2. silence
+                           // 3. notes with first note having lyrics
+```
+
+### 3. When Brackets Are Required
+
+Brackets must be used when a single beat contains any of:
+1. Multiple note-lyric pairs
+2. Mixed compound notes and lyrics
+3. Complex patterns that could be ambiguous
+4. Specific timing within a beat
+
+### 4. Parsing Rules
+
+1. Everything within `[]` is treated as a single beat
+2. Within a beat:
+   - `note:lyric` pairs are processed first
+   - Remaining notes are grouped
+   - Remaining lyrics are attached to the entire beat
+3. Outside brackets:
+   - Each space-separated element is a beat
+   - Simple compound notes (SRG) are kept together
+   - Silence (-) and sustain (*) are separate beats
+
+### 5. Examples with Parsing Steps
+
+```
+Input: [SRG man] - [P:aa D N]
+
+Parsing steps:
+1. Identify beats by brackets:
+   - Beat 1: [SRG man]
+   - Beat 2: -
+   - Beat 3: [P:aa D N]
+
+2. Parse each beat:
+   Beat 1: [SRG man]
+   - No note:lyric pairs
+   - Notes: SRG (compound)
+   - Lyrics: man (applies to all notes)
+
+   Beat 2: -
+   - Single silence
+
+   Beat 3: [P:aa D N]
+   - Note:lyric pair: P:aa
+   - Remaining notes: D N
+```
+
+### 6. Implementation Note
+
+When implementing a parser for SureScript:
+1. First split the line into beats using brackets as delimiters
+2. For each beat:
+   - If bracketed, parse internal components
+   - If unbracketed, apply simple beat rules
+3. Apply simplification rules only after parsing is complete
+4. Preserve the original meaning when simplifying notation
+
+This parsing strategy ensures consistent interpretation of complex musical patterns while allowing for simplified notation where possible.
