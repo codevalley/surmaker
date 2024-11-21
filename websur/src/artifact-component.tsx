@@ -3,6 +3,8 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Download, FileText } from 'lucide-react';
+import { SurParser, SurDocument, Note } from './lib/sur-parser';
+import html2pdf from 'html2pdf.js';
 
 const UPPER_BAR = '\u0304'; // Macron above: S̄
 const LOWER_BAR = '\u0332'; // Macron below: S̲
@@ -55,129 +57,105 @@ b: [-][aa][-][oo][-][re][-][be][-][la][-][sa][-][ja][nn][-]
 b: [aa][-][oo][-][re][-][-][-][-][-][-][-][-][-][-][-]`;
 
 interface BeatGridProps {
-  beats: (string | number)[];
+  beats: (Note | number)[];
   totalBeats?: number;
   groupSize?: number;
 }
 
-const processNote = (note: string): {
+const processNote = (note: Note): {
   text: string;
   type: 'note' | 'lyrics' | 'special';
   display: string;
 } => {
-  // Handle special characters
-  if (note === '-') {
-    return {
-      text: note,
-      type: 'special',
-      display: '−' // Using a proper minus sign
-    };
-  }
-  if (note === '*') {
-    return {
-      text: note,
-      type: 'special',
-      display: '·' // Using a middle dot
-    };
-  }
-
-  // Check if the note is uppercase (indicating it's a musical note)
-  const isNote = /^[A-Z.'*-]+$/.test(note);
+  console.log('Processing note for display:', note);
   
-  if (!isNote) {
+  if (note.isSpecial) {
     return {
-      text: note,
+      text: note.sur || '',
+      type: 'special',
+      display: note.sur === '-' ? '−' : '·'
+    };
+  }
+
+  if (note.lyrics && !note.sur) {
+    return {
+      text: note.lyrics,
       type: 'lyrics',
-      display: note
+      display: note.lyrics
     };
   }
 
-  // Handle octave notation for notes
-  if (note.includes("'")) {
-    // First remove all quotes and split into characters
-    const baseNotes = note.replace(/'/g, '').split('');
-    const result = baseNotes.map((char, index) => {
-      // Check if the original note had a quote after this position
-      const originalIndex = note.indexOf(char, note.indexOf(char));
-      const nextCharInOriginal = note[originalIndex + 1];
-      
-      return nextCharInOriginal === "'" ? char + UPPER_BAR : char;
-    }).join('');
-    
+  if (note.sur) {
+    let display = note.sur;
+    if (note.octave === 'upper') {
+      display = `${display}${UPPER_BAR}`;
+    } else if (note.octave === 'lower') {
+      display = `${display}${LOWER_BAR}`;
+    }
     return {
-      text: note.replace(/'/g, ""),
+      text: note.sur,
       type: 'note',
-      display: result
-    };
-  } else if (note.startsWith(".")) {
-    return {
-      text: note.substring(1),
-      type: 'note',
-      display: note.substring(1).split('').map(char => char + LOWER_BAR).join('')
+      display: display
     };
   }
 
+  // Default case
   return {
-    text: note,
-    type: 'note',
-    display: note
+    text: '',
+    type: 'special',
+    display: '−'
   };
 };
 
 const BeatGrid: React.FC<BeatGridProps> = ({ beats, totalBeats = 16, groupSize = 4 }) => {
+  console.log('BeatGrid received beats:', beats);
   const groups = [];
-  for (let i = 0; i < totalBeats; i += groupSize) {
-    groups.push(beats.slice(i, i + groupSize));
+  const beatsToRender = Array.isArray(beats) ? beats : [];
+
+  // Fill with empty beats if needed
+  while (beatsToRender.length < totalBeats) {
+    beatsToRender.push({ isSpecial: true, sur: '-' });
   }
-  
+
+  // Group beats
+  for (let i = 0; i < totalBeats; i += groupSize) {
+    const group = beatsToRender.slice(i, i + groupSize);
+    groups.push(group);
+  }
+
   return (
-    <div className="flex w-full">
-      {groups.map((group, groupIdx) => (
-        <div key={groupIdx} className="flex-1 border-r last:border-r-0 border-gray-200">
+    <div className="grid grid-cols-4 gap-0 border border-gray-200 rounded-lg">
+      {groups.map((group, groupIndex) => (
+        <div key={groupIndex} className="border-r border-gray-200 last:border-r-0">
           <div className="grid grid-cols-4">
-            {group.map((beat, beatIdx) => {
-              const beatStr = String(beat || '');
-              const [lyrics, notes] = beatStr.includes(':') ? beatStr.split(':') : [null, beatStr];
-              
-              // Process notes for octave notation
-              const processedNotes = notes ? notes.split(' ').map(processNote) : [];
+            {group.map((beat, beatIndex) => {
+              const key = `${groupIndex}-${beatIndex}`;
+              if (typeof beat === 'number') {
+                return (
+                  <div key={key} className="text-center p-1 text-gray-500 text-sm border-r border-gray-100 last:border-r-0">
+                    {beat}
+                  </div>
+                );
+              }
+
+              const processedBeat = processNote(beat);
+              console.log('Processed beat for display:', processedBeat);
               
               return (
-                <div
-                  key={beatIdx}
-                  className="p-1 text-center border-r last:border-r-0 border-gray-100 min-h-[2em] flex items-center justify-center relative group w-[25%]"
-                  title={`Beat ${beatIdx + 1 + groupIdx * groupSize}`}
+                <div 
+                  key={key} 
+                  className="text-center p-1 border-r border-gray-100 last:border-r-0 relative group"
+                  title={`Beat ${groupIndex * 4 + beatIndex + 1}`}
                 >
-                  <div className="text-sm flex flex-col items-center w-full">
-                    {/* Lyrics */}
-                    {lyrics && (
-                      <div className="text-blue-600 font-medium w-full overflow-hidden text-center">
-                        {lyrics}
-                      </div>
-                    )}
-                    
-                    {/* Notes */}
-                    {processedNotes.length > 0 && (
-                      <div className={`font-mono w-full text-center ${lyrics ? "mt-0.5" : ""}`}>
-                        {processedNotes.map((n, i) => (
-                          <span 
-                            key={i} 
-                            className={`inline-block mx-0.5 ${
-                              n.type === 'note' ? 'text-black' : 
-                              n.type === 'special' ? 'text-gray-500' :
-                              'text-blue-600'
-                            }`}
-                          >
-                            {n.display}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                  <div className={`text-sm ${
+                    processedBeat.type === 'lyrics' ? 'text-blue-600' : 
+                    processedBeat.type === 'note' ? 'text-black' : 
+                    'text-gray-400'
+                  }`}>
+                    {processedBeat.display}
                   </div>
-                  
-                  {/* Beat position tooltip */}
-                  <div className="absolute opacity-0 group-hover:opacity-100 bg-gray-800 text-white text-xs px-2 py-1 rounded -top-8 pointer-events-none transition-opacity">
-                    Beat {beatIdx + 1 + groupIdx * groupSize}
+                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                    Beat {groupIndex * 4 + beatIndex + 1}
                   </div>
                 </div>
               );
@@ -189,231 +167,77 @@ const BeatGrid: React.FC<BeatGridProps> = ({ beats, totalBeats = 16, groupSize =
   );
 };
 
-const parseSURFile = (content: string) => {
-  const sections: Record<string, string[]> = {};
-  let currentSection: string | null = null;
-  
-  content.split('\n').forEach(line => {
-    if (line.startsWith('%%')) {
-      currentSection = line.substring(2).trim().toLowerCase();
-      sections[currentSection] = [];
-    } else if (line.trim() && currentSection) {
-      sections[currentSection].push(line.trim());
-    }
-  });
-  
-  // Parse config into object
-  const config: Record<string, string> = {};
-  sections.config?.forEach(line => {
-    const [key, value] = line.split(':').map(s => s.trim().replace(/"/g, ''));
-    config[key] = value;
-  });
-  
-  // Parse composition into structured format
-  const composition: Array<{ title: string; lines: Array<{ type: string; beats: string[] }> }> = [];
-  let currentGroup = null;
-  
-  sections.composition?.forEach(line => {
-    if (line.startsWith('#')) {
-      currentGroup = { title: line.substring(1), lines: [] };
-      composition.push(currentGroup);
-    } else if (currentGroup && line.trim()) {
-      const [type, content] = line.split(':').map(s => s.trim());
-      let beats: string[];
-      
-      // Check if content uses bracketed format
-      if (content.includes('[')) {
-        // Parse bracketed format
-        beats = content.match(/\[(.*?)\]/g)?.map(beat => beat.slice(1, -1)) || [];
-      } else {
-        // Parse space-separated format
-        beats = content.trim().split(/\s+/).map(beat => {
-          // Handle quoted lyrics with spaces
-          if (beat.startsWith('"') && beat.endsWith('"')) {
-            return beat.slice(1, -1);
-          }
-          return beat;
-        });
-      }
-      
-      currentGroup.lines.push({ type, beats });
-    }
-  });
-  
-  return { config, composition };
+const parseSURFile = (content: string): SurDocument => {
+  const parser = new SurParser();
+  return parser.parse(content);
 };
 
 const PDFExporter = ({ config, composition }) => {
   const generatePDF = () => {
     // Create a hidden div with formatted content
-    const printContent = document.createElement('div');
-    printContent.style.display = 'none';
-    document.body.appendChild(printContent);
+    const container = document.createElement('div');
+    container.style.display = 'none';
+    document.body.appendChild(container);
 
-    // Style the content for PDF
-    printContent.innerHTML = `
-      <div style="font-family: monospace; padding: 16px;">
-        <h1 style="font-size: 24px; margin-bottom: 16px;">${config.name || 'Untitled'}</h1>
-        <div style="margin-bottom: 16px;">
-          <p><strong>Raag:</strong> ${config.raag}</p>
-          <p><strong>Taal:</strong> ${config.taal}</p>
-          <p><strong>Tempo:</strong> ${config.tempo}</p>
-        </div>
-        <div style="margin-top: 32px;">
-          ${generateFormattedNotation(composition)}
-        </div>
-      </div>
+    // Add title and metadata
+    const title = document.createElement('h1');
+    title.textContent = config.name || 'Untitled';
+    container.appendChild(title);
+
+    const metadata = document.createElement('div');
+    metadata.innerHTML = `
+      <p><strong>Raag:</strong> ${config.raag || ''}</p>
+      <p><strong>Taal:</strong> ${config.taal || ''}</p>
+      <p><strong>Tempo:</strong> ${config.tempo || ''}</p>
+      <p><strong>Beats per Row:</strong> ${config.beats_per_row || ''}</p>
     `;
+    container.appendChild(metadata);
 
-    // Use browser's print functionality to generate PDF
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>${config.name || 'Music Notation'}</title>
-          <style>
-            @media print {
-              body { margin: 0; padding: 16px; }
-              @page { size: A4 landscape; margin: 1.5cm; }
-            }
-            .beat-grid { 
-              width: 100%;
-              margin-bottom: 6px;
-              display: table;
-              table-layout: fixed;
-              border-collapse: collapse;
-            }
-            .beat-group { 
-              display: table-cell;
-              width: 25%;
-              border-right: 1px solid #e5e7eb;
-            }
-            .beat-group:last-child { 
-              border-right: none; 
-            }
-            .beat-group-inner {
-              display: table;
-              width: 100%;
-              table-layout: fixed;
-            }
-            .beat { 
-              display: table-cell;
-              width: 25%;
-              padding: 3px;
-              text-align: center;
-              border-right: 1px solid #f3f4f6;
-              vertical-align: middle;
-            }
-            .beat:last-child {
-              border-right: none;
-            }
-            .beat-content {
-              display: inline-block;
-              width: 100%;
-              text-align: center;
-              font-size: 0.875rem;
-            }
-            .beat-lyrics {
-              color: #2563eb;
-              font-weight: 500;
-            }
-            .beat-notes {
-              color: #000000;
-              font-family: monospace;
-              margin-top: 0.125rem;
-            }
-            .beat-special {
-              color: #666666;
-            }
-            .section-title { 
-              color: #2563eb; 
-              font-size: 18px; 
-              margin: 12px 0 6px;
-            }
-          </style>
-        </head>
-        <body>
-          ${printContent.innerHTML}
-          <script>
-            window.onload = () => {
-              window.print();
-              window.close();
-            }
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-
-    // Clean up
-    document.body.removeChild(printContent);
-  };
-
-  const generateFormattedNotation = (composition) => {
-    const beatNumbers = Array.from({ length: 16 }, (_, i) => i + 1);
-
-    let html = `
-      <div class="beat-grid">
-        ${generateBeatGrid(beatNumbers)}
-      </div>
-    `;
-
+    // Add composition sections
     composition.forEach(group => {
-      html += `
-        <h3 class="section-title">${group.title}</h3>
-        ${group.lines.map(line => `
-          <div class="beat-grid">
-            ${generateBeatGrid(line.beats)}
-          </div>
-        `).join('')}
-      `;
+      const section = document.createElement('div');
+      section.className = 'section';
+      
+      const sectionTitle = document.createElement('h2');
+      sectionTitle.textContent = group.title;
+      section.appendChild(sectionTitle);
+
+      group.lines.forEach(line => {
+        const lineDiv = document.createElement('div');
+        lineDiv.className = 'line';
+        
+        const beats = line.beats.map(note => {
+          if (typeof note === 'number') return note.toString();
+          return note.sur || note.lyrics || '-';
+        }).join(' ');
+        
+        lineDiv.textContent = beats;
+        section.appendChild(lineDiv);
+      });
+
+      container.appendChild(section);
     });
 
-    return html;
-  };
+    // Use html2pdf to generate PDF
+    const element = container;
+    const opt = {
+      margin:       1,
+      filename:     `${config.name || 'composition'}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2 },
+      jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+    };
 
-  const generateBeatGrid = (beats) => {
-    let html = '';
-    for (let i = 0; i < beats.length; i += 4) {
-      const group = beats.slice(i, i + 4);
-      html += `
-        <div class="beat-group">
-          <div class="beat-group-inner">
-            ${group.map(beat => {
-              if (!beat) return '<div class="beat"><div class="beat-content"><span class="beat-special">−</span></div></div>';
-              
-              const beatStr = String(beat);
-              const [lyrics, notes] = beatStr.includes(':') ? beatStr.split(':') : [null, beatStr];
-              
-              return `
-                <div class="beat">
-                  <div class="beat-content">
-                    ${lyrics ? `<div class="beat-lyrics">${lyrics}</div>` : ''}
-                    ${notes ? `
-                      <div class="beat-notes">
-                        ${(() => {
-                          const processedNote = processNote(notes);
-                          return processedNote.display;
-                        })()}
-                      </div>
-                    ` : ''}
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        </div>
-      `;
-    }
-    return html;
+    html2pdf().from(element).set(opt).save().then(() => {
+      document.body.removeChild(container);
+    });
   };
 
   return (
     <Button 
-      onClick={generatePDF}
-      className="flex items-center gap-2"
+      variant="default" 
+      onClick={generatePDF} 
+      className="flex items-center gap-2 bg-black hover:bg-black/90 text-white"
     >
       <Download size={16} />
       Download PDF
@@ -454,7 +278,9 @@ const SUREditor = ({ content, onChange }) => {
 };
 
 const SURViewer = ({ content, hideControls = false, onTitleClick = undefined }) => {
-  const { config, composition } = parseSURFile(content);
+  console.log('SURViewer content:', content);
+  const surDocument = parseSURFile(content);
+  console.log('SURViewer parsed document:', surDocument);
   const beatNumbers = Array.from({ length: 16 }, (_, i) => i + 1);
 
   return (
@@ -466,22 +292,22 @@ const SURViewer = ({ content, hideControls = false, onTitleClick = undefined }) 
             onClick={onTitleClick}
           >
             <CardTitle className="text-2xl font-bold mb-2">
-              {config.name || 'Untitled'}
+              {surDocument.metadata.name || 'Untitled'}
             </CardTitle>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <p><span className="font-semibold">Raag:</span> {config.raag}</p>
-                <p><span className="font-semibold">Taal:</span> {config.taal}</p>
+                <p><span className="font-semibold">Raag:</span> {surDocument.metadata.raag}</p>
+                <p><span className="font-semibold">Taal:</span> {surDocument.metadata.taal}</p>
               </div>
               <div>
-                <p><span className="font-semibold">Tempo:</span> {config.tempo}</p>
-                <p><span className="font-semibold">Beats per Row:</span> {config.beats_per_row}</p>
+                <p><span className="font-semibold">Tempo:</span> {surDocument.metadata.tempo}</p>
+                <p><span className="font-semibold">Beats per Row:</span> {surDocument.metadata.beats_per_row}</p>
               </div>
             </div>
           </div>
           {!hideControls && (
             <div className="flex gap-2">
-              <PDFExporter config={config} composition={composition} />
+              <PDFExporter config={surDocument.metadata} composition={surDocument.composition} />
               <Button 
                 variant="outline" 
                 onClick={() => {
@@ -489,7 +315,7 @@ const SURViewer = ({ content, hideControls = false, onTitleClick = undefined }) 
                   const url = window.URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = `${config.name || 'composition'}.sur`;
+                  a.download = `${surDocument.metadata.name || 'composition'}.sur`;
                   document.body.appendChild(a);
                   a.click();
                   document.body.removeChild(a);
@@ -514,16 +340,19 @@ const SURViewer = ({ content, hideControls = false, onTitleClick = undefined }) 
           </div>
           
           {/* Composition sections */}
-          {composition.map((group, groupIdx) => (
-            <div key={groupIdx} className="space-y-1.5">
-              <h3 className="text-lg font-semibold text-blue-600 mb-1">{group.title}</h3>
-              {group.lines.map((line, lineIdx) => (
-                <div key={lineIdx} className="font-mono text-sm">
-                  <BeatGrid beats={line.beats} />
+          {surDocument.composition.sections.map((section, sectionIdx) => {
+            console.log('Rendering section:', section);
+            return (
+              <div key={sectionIdx} className="space-y-1.5">
+                <h3 className="text-lg font-semibold text-blue-600 mb-1">{section.name}</h3>
+                <div className="font-mono text-sm space-y-2">
+                  {section.beats.map((beat, beatIdx) => (
+                    <BeatGrid key={beatIdx} beats={beat.notes} />
+                  ))}
                 </div>
-              ))}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       </CardContent>
     </Card>
