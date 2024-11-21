@@ -1,10 +1,5 @@
 export interface SurMetadata {
-  name?: string;
-  raag?: string;
-  taal?: string;
-  beats_per_row?: number;
-  tempo?: string;
-  [key: string]: any; // Allow for additional metadata
+  [key: string]: string;
 }
 
 export interface ScaleNote {
@@ -16,12 +11,14 @@ export interface Scale {
   notes: Record<string, string>;  // Maps note symbols to their full names
 }
 
-export interface Note {
-  sur?: string;      // The musical note (S, R, G, etc.)
-  lyrics?: string;   // Optional lyrics
-  octave?: 'lower' | 'middle' | 'upper';  // Octave information
-  isSpecial?: boolean;  // For special characters like '-' (silence) or '*' (sustain)
-}
+export type Note = {
+  lyrics?: string;
+  isSpecial?: boolean;
+  sur?: string;
+  octave?: 'upper' | 'middle' | 'lower';
+  compound?: Array<{ sur: string; octave: 'upper' | 'middle' | 'lower' }>;
+  mixed?: Array<Note>;
+};
 
 export interface Beat {
   position: {

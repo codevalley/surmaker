@@ -69,6 +69,7 @@ const processNote = (note: Note): {
 } => {
   console.log('Processing note for display:', note);
   
+  // Handle special characters first
   if (note.isSpecial) {
     return {
       text: note.sur || '',
@@ -77,7 +78,8 @@ const processNote = (note: Note): {
     };
   }
 
-  if (note.lyrics && !note.sur) {
+  // Handle lyrics next (including bracketed lyrics)
+  if (note.lyrics) {
     return {
       text: note.lyrics,
       type: 'lyrics',
@@ -85,6 +87,24 @@ const processNote = (note: Note): {
     };
   }
 
+  // Handle compound notes (only valid SUR notes)
+  if (note.compound) {
+    return {
+      text: note.compound.map(n => n.sur).join(''),
+      type: 'note',
+      display: note.compound.map(n => {
+        let display = n.sur || '';
+        if (n.octave === 'upper') {
+          display = `${display}${UPPER_BAR}`;
+        } else if (n.octave === 'lower') {
+          display = `${display}${LOWER_BAR}`;
+        }
+        return display;
+      }).join('')
+    };
+  }
+
+  // Handle single SUR notes
   if (note.sur) {
     let display = note.sur;
     if (note.octave === 'upper') {
@@ -123,6 +143,64 @@ const BeatGrid: React.FC<BeatGridProps> = ({ beats, totalBeats = 16, groupSize =
     groups.push(group);
   }
 
+  const renderNote = (note: Note, index: number) => {
+    if ('lyrics' in note) {
+      return <span key={index} style={{ color: 'blue' }}>{note.lyrics}</span>;
+    }
+
+    if (note.isSpecial) {
+      return <span key={index} style={{ color: 'gray' }}>
+        {note.sur === '-' ? '−' : '·'}
+      </span>;
+    }
+
+    const renderSingleNote = (sur: string, octave?: 'upper' | 'middle' | 'lower') => {
+      if (octave === 'upper') {
+        return `${sur}${UPPER_BAR}`;
+      } else if (octave === 'lower') {
+        return `${sur}${LOWER_BAR}`;
+      }
+      return sur;
+    };
+
+    if ('mixed' in note) {
+      return (
+        <span key={index}>
+          {note.mixed.map((part, i) => (
+            <span key={i}>
+              {'lyrics' in part ? (
+                <span style={{ color: 'blue' }}>{part.lyrics}</span>
+              ) : 'compound' in part ? (
+                <span style={{ color: 'black' }}>
+                  {part.compound.map((n, j) => renderSingleNote(n.sur, n.octave)).join('')}
+                </span>
+              ) : (
+                <span style={{ color: 'black' }}>
+                  {renderSingleNote(part.sur || '', part.octave)}
+                </span>
+              )}
+              {i < note.mixed.length - 1 ? ' ' : ''}
+            </span>
+          ))}
+        </span>
+      );
+    }
+
+    if ('compound' in note) {
+      return (
+        <span key={index} style={{ color: 'black' }}>
+          {note.compound.map((n, i) => renderSingleNote(n.sur, n.octave)).join('')}
+        </span>
+      );
+    }
+
+    return (
+      <span key={index} style={{ color: 'black' }}>
+        {renderSingleNote(note.sur || '', note.octave)}
+      </span>
+    );
+  };
+
   return (
     <div className="grid grid-cols-4 gap-0 border border-gray-200 rounded-lg">
       {groups.map((group, groupIndex) => (
@@ -149,10 +227,9 @@ const BeatGrid: React.FC<BeatGridProps> = ({ beats, totalBeats = 16, groupSize =
                 >
                   <div className={`text-sm ${
                     processedBeat.type === 'lyrics' ? 'text-blue-600' : 
-                    processedBeat.type === 'note' ? 'text-black' : 
-                    'text-gray-400'
+                    'text-black'
                   }`}>
-                    {processedBeat.display}
+                    {renderNote(beat, beatIndex)}
                   </div>
                   <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
                     Beat {groupIndex * 4 + beatIndex + 1}
