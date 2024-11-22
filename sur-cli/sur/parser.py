@@ -55,8 +55,10 @@ class SURParser:
         return sections
     
     def _parse_beats(self, beat_line: str) -> List[Beat]:
+        """Parse a line of beats into Beat objects"""
         beats = []
-        tokens = re.findall(r'\[.*?\]|\S+', beat_line)
+        # Updated regex to better handle bracketed content
+        tokens = re.findall(r'\[.*?\]|[^\s]+', beat_line)
         
         for token in tokens:
             if token == "-":
@@ -64,14 +66,19 @@ class SURParser:
             elif token == "*":
                 beats.append(Beat([], is_sustain=True))
             else:
-                if token.startswith("["):
-                    token = token[1:-1]
+                # Handle bracketed content
+                is_bracketed = token.startswith("[") and token.endswith("]")
+                if is_bracketed:
+                    token = token[1:-1].strip()  # Remove brackets and whitespace
                 
                 if ":" in token:
                     lyrics, notes = token.split(":", 1)
-                    beats.append(Beat(self._parse_notes(notes), lyrics=lyrics.strip('"')))
+                    beats.append(Beat(
+                        self._parse_notes(notes.strip()), 
+                        lyrics=lyrics.strip('"')
+                    ))
                 else:
-                    beats.append(Beat(self._parse_notes(token)))
+                    beats.append(Beat(self._parse_notes(token.strip())))
         
         return beats
     
