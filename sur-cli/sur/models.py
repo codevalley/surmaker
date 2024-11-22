@@ -20,6 +20,13 @@ class NoteVariant(Enum):
     KOMAL = auto()
     TIVRA = auto()
 
+class ElementType(Enum):
+    """Type of element - normal, separator, or bracket"""
+    NORMAL = auto()
+    SEPARATOR = auto()
+    OPEN_BRACKET = auto()
+    CLOSE_BRACKET = auto()
+
 @dataclass
 class Note:
     """A musical note with pitch, octave, and variant"""
@@ -48,6 +55,7 @@ class Element:
     """A discrete sub-beat that can contain either lyrics or a single note, but not both"""
     lyrics: Optional[str] = None
     note: Optional[Note] = None
+    type: ElementType = ElementType.NORMAL
 
     def format_lyrics(self, force_quotes: bool = False) -> Optional[str]:
         """Format lyrics, optionally forcing quotes"""
@@ -74,12 +82,19 @@ class Beat:
 
     def __str__(self) -> str:
         """Format the beat for display"""
+        if not self.elements:
+            return ""
+            
+        # If there's only one element, just return its string representation
+        if len(self.elements) == 1:
+            return str(self.elements[0])
+            
         # If all elements are just notes (no lyrics), compact them
         if all(not e.lyrics and e.note for e in self.elements):
             return "".join(str(e) for e in self.elements)
         
-        # If we have any lyrics, use brackets
-        formatted = " ".join(str(e) for e in self.elements)
+        # Multiple elements with at least one lyrics - use brackets
+        formatted = " ".join(str(e) for e in self.elements if str(e))
         return f"[{formatted}]" if formatted else ""
 
 @dataclass
