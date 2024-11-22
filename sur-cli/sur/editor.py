@@ -1,6 +1,8 @@
 from typing import Optional, List
 from rich.console import Console
 from rich.prompt import Prompt
+from prompt_toolkit import PromptSession
+from prompt_toolkit.completion import WordCompleter
 from .models import SURFile, Section, Beat, Element, Note, NotePitch
 from .parser import SURParser
 
@@ -11,6 +13,19 @@ class SUREditor:
         self.current_file: Optional[SURFile] = None
         self.current_section_index: int = 0
         self.current_beat_index: int = 0
+        
+        # Setup command completion
+        self.commands = {
+            "show": "Display current position",
+            "append": "Add a beat after current position",
+            "insert": "Insert a beat at current position",
+            "delete": "Delete current beat",
+            "debug": "Show debug info for a beat",
+            "quit": "Exit editor",
+            "help": "Show this help"
+        }
+        self.completer = WordCompleter(list(self.commands.keys()), ignore_case=True)
+        self.session = PromptSession(completer=self.completer)
         
     def load_file(self, content: str):
         """Load a SUR file from string content"""
@@ -223,12 +238,13 @@ class SUREditor:
         """Start the editor session"""
         while True:
             try:
-                command = Prompt.ask("sur", default="")
+                # Use prompt_toolkit for better input handling
+                command = self.session.prompt("sur> ").strip()
                 if not command:
                     continue
                 
                 parts = command.split(maxsplit=1)
-                cmd = parts[0]
+                cmd = parts[0].lower()
                 args = parts[1] if len(parts) > 1 else ""
                 
                 if cmd == "quit":
@@ -251,6 +267,7 @@ class SUREditor:
                     self._show_help()
                 else:
                     self.console.print(f"[red]Unknown command: {cmd}[/red]")
+                    self.console.print("Type 'help' for available commands")
                     
             except KeyboardInterrupt:
                 continue
@@ -259,17 +276,12 @@ class SUREditor:
 
     def _show_help(self):
         """Show help information"""
-        help_text = """
-        Commands:
-        - show: Display current position
-        - append <beat>: Add a beat after current position
-        - insert <beat>: Insert a beat at current position
-        - delete: Delete current beat
-        - debug [number]: Show debug info for a beat
-        - quit: Exit editor
-        - help: Show this help
+        self.console.print("\n[bold blue]Available Commands:[/bold blue]")
+        for cmd, desc in self.commands.items():
+            self.console.print(f"[yellow]{cmd:10}[/yellow] {desc}")
         
-        Beat Format:
+        help_text = """
+        [bold blue]Beat Format:[/bold blue]
         - Notes: S R G M P D N (uppercase only)
         - Octaves: S' (higher), S, (lower)
         - Silence: -
