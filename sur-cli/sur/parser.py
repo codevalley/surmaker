@@ -106,9 +106,12 @@ class SURParser:
         in_bracket = False
         last_was_separator = True  # Start true to handle first element
         
-        def create_beat(elems):
+        def create_beat(elems, bracketed=False):
             if elems:
-                beats.append(Beat(elements=[e for e in elems if e.type == ElementType.NORMAL]))
+                beats.append(Beat(
+                    elements=[e for e in elems if e.type == ElementType.NORMAL],
+                    bracketed=bracketed
+                ))
         
         for element in elements:
             if element.type == ElementType.SEPARATOR:
@@ -127,7 +130,7 @@ class SURParser:
                 in_bracket = False
                 # Create beat from bracketed elements
                 if bracket_elements:
-                    beats.append(Beat(elements=[e for e in bracket_elements if e.type == ElementType.NORMAL]))
+                    create_beat(bracket_elements, bracketed=True)
                 bracket_elements = []
                 last_was_separator = True
             else:  # Normal element

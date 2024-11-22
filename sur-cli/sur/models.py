@@ -79,6 +79,7 @@ class Element:
 class Beat:
     """A beat in a composition, containing one or more elements"""
     elements: List[Element] = field(default_factory=list)
+    bracketed: bool = False  # Track if this beat was originally in brackets
 
     def __str__(self) -> str:
         """Format the beat for display"""
@@ -89,13 +90,11 @@ class Beat:
         if len(self.elements) == 1:
             return str(self.elements[0])
             
-        # If all elements are just notes (no lyrics), compact them
-        if all(not e.lyrics and e.note for e in self.elements):
-            return "".join(str(e) for e in self.elements)
+        # Format the elements - use spaces only if bracketed
+        formatted = (" ".join if self.bracketed else "".join)(str(e) for e in self.elements if str(e))
         
-        # Multiple elements with at least one lyrics - use brackets
-        formatted = " ".join(str(e) for e in self.elements if str(e))
-        return f"[{formatted}]" if formatted else ""
+        # Add brackets only if this was originally bracketed
+        return f"[{formatted}]" if self.bracketed else formatted
 
 @dataclass
 class Section:
