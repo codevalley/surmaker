@@ -1,6 +1,6 @@
 import click
 from pathlib import Path
-from .editor import Editor
+from .editor import SUREditor
 from rich.console import Console
 from rich.syntax import Syntax
 
@@ -15,16 +15,16 @@ def main():
 @click.argument('filename', type=click.Path(exists=True))
 def open(filename):
     """Open and edit a SUR file"""
-    editor = Editor()
-    editor.load_file(Path(filename))
+    editor = SUREditor()
+    editor.load_file(Path(filename).read_text())
     editor.start()
 
 @main.command()
 def new():
     """Create a new SUR composition"""
-    editor = Editor()
+    editor = SUREditor()
     editor.new_file()
     editor.start()
 
 if __name__ == '__main__':
-    main() 
+    main()
