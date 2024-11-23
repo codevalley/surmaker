@@ -6,9 +6,6 @@ import { Download, FileText } from 'lucide-react';
 import { SurParser, SurDocument, Note } from './lib/sur-parser';
 import html2pdf from 'html2pdf.js';
 
-const UPPER_BAR = '\u0304'; // Macron above: S̄
-const LOWER_BAR = '\u0332'; // Macron below: S̲
-
 const DEFAULT_SUR = `%% CONFIG
 name: "Albela Sajan"
 raag: "bhoopali"
@@ -67,18 +64,14 @@ const processNote = (note: Note): {
   type: 'note' | 'lyrics' | 'special';
   display: string;
 } => {
-  console.log('Processing note for display:', note);
-  
-  // Handle special characters first
   if (note.isSpecial) {
     return {
       text: note.sur || '',
       type: 'special',
-      display: note.sur === '-' ? '−' : '·'
+      display: note.sur || ''
     };
   }
 
-  // Handle lyrics next (including bracketed lyrics)
   if (note.lyrics) {
     return {
       text: note.lyrics,
@@ -87,44 +80,65 @@ const processNote = (note: Note): {
     };
   }
 
-  // Handle compound notes (only valid SUR notes)
+  if (note.mixed) {
+    const display = note.mixed.map(part => {
+      if (part.isSpecial) return part.sur;
+      if (part.lyrics) return part.lyrics;
+      if (part.compound) {
+        return part.compound.map(n => renderNoteWithOctave(n)).join('');
+      }
+      return renderNoteWithOctave(part);
+    }).join('');
+
+    return {
+      text: display,
+      type: note.mixed.some(part => part.lyrics) ? 'lyrics' : 'note',
+      display
+    };
+  }
+
   if (note.compound) {
+    const display = note.compound.map(n => renderNoteWithOctave(n)).join('');
     return {
-      text: note.compound.map(n => n.sur).join(''),
+      text: display,
       type: 'note',
-      display: note.compound.map(n => {
-        let display = n.sur || '';
-        if (n.octave === 'upper') {
-          display = `${display}${UPPER_BAR}`;
-        } else if (n.octave === 'lower') {
-          display = `${display}${LOWER_BAR}`;
-        }
-        return display;
-      }).join('')
+      display
     };
   }
 
-  // Handle single SUR notes
-  if (note.sur) {
-    let display = note.sur;
-    if (note.octave === 'upper') {
-      display = `${display}${UPPER_BAR}`;
-    } else if (note.octave === 'lower') {
-      display = `${display}${LOWER_BAR}`;
-    }
-    return {
-      text: note.sur,
-      type: 'note',
-      display: display
-    };
-  }
-
-  // Default case
   return {
-    text: '',
-    type: 'special',
-    display: '−'
+    text: renderNoteWithOctave(note),
+    type: 'note',
+    display: renderNoteWithOctave(note)
   };
+};
+
+const renderNote = (beat: Note | number, beatIndex: number) => {
+  if (typeof beat === 'number') {
+    return <span className="text-gray-500">{beat}</span>;
+  }
+
+  const processed = processNote(beat);
+  return (
+    <span className={
+      processed.type === 'lyrics' ? 'text-blue-600' :
+      processed.type === 'special' ? 'text-gray-400' :
+      'text-black'
+    }>
+      {processed.display}
+    </span>
+  );
+};
+
+// Unicode combining characters for octave markers
+const UPPER_BAR = '\u0305'; // Combining overline
+const LOWER_BAR = '\u0332'; // Combining underline
+
+const renderNoteWithOctave = (note: { sur?: string; octave?: 'upper' | 'middle' | 'lower' }) => {
+  if (!note.sur) return '';
+  if (note.octave === 'upper') return `${note.sur}${UPPER_BAR}`;
+  if (note.octave === 'lower') return `${note.sur}${LOWER_BAR}`;
+  return note.sur;
 };
 
 const BeatGrid: React.FC<BeatGridProps> = ({ beats, totalBeats = 16, groupSize = 4 }) => {
@@ -143,100 +157,23 @@ const BeatGrid: React.FC<BeatGridProps> = ({ beats, totalBeats = 16, groupSize =
     groups.push(group);
   }
 
-  const renderNote = (note: Note, index: number) => {
-    if ('lyrics' in note) {
-      return <span key={index} style={{ color: 'blue' }}>{note.lyrics}</span>;
-    }
-
-    if (note.isSpecial) {
-      return <span key={index} style={{ color: 'gray' }}>
-        {note.sur === '-' ? '−' : '·'}
-      </span>;
-    }
-
-    const renderSingleNote = (sur: string, octave?: 'upper' | 'middle' | 'lower') => {
-      if (octave === 'upper') {
-        return `${sur}${UPPER_BAR}`;
-      } else if (octave === 'lower') {
-        return `${sur}${LOWER_BAR}`;
-      }
-      return sur;
-    };
-
-    if ('mixed' in note) {
-      return (
-        <span key={index}>
-          {note.mixed.map((part, i) => (
-            <span key={i}>
-              {'lyrics' in part ? (
-                <span style={{ color: 'blue' }}>{part.lyrics}</span>
-              ) : 'compound' in part ? (
-                <span style={{ color: 'black' }}>
-                  {part.compound.map((n, j) => renderSingleNote(n.sur, n.octave)).join('')}
-                </span>
-              ) : (
-                <span style={{ color: 'black' }}>
-                  {renderSingleNote(part.sur || '', part.octave)}
-                </span>
-              )}
-              {i < note.mixed.length - 1 ? ' ' : ''}
-            </span>
-          ))}
-        </span>
-      );
-    }
-
-    if ('compound' in note) {
-      return (
-        <span key={index} style={{ color: 'black' }}>
-          {note.compound.map((n, i) => renderSingleNote(n.sur, n.octave)).join('')}
-        </span>
-      );
-    }
-
-    return (
-      <span key={index} style={{ color: 'black' }}>
-        {renderSingleNote(note.sur || '', note.octave)}
-      </span>
-    );
-  };
-
   return (
     <div className="grid grid-cols-4 gap-0 border border-gray-200 rounded-lg">
       {groups.map((group, groupIndex) => (
         <div key={groupIndex} className="border-r border-gray-200 last:border-r-0">
           <div className="grid grid-cols-4">
-            {group.map((beat, beatIndex) => {
-              const key = `${groupIndex}-${beatIndex}`;
-              if (typeof beat === 'number') {
-                return (
-                  <div key={key} className="text-center p-1 text-gray-500 text-sm border-r border-gray-100 last:border-r-0">
-                    {beat}
-                  </div>
-                );
-              }
-
-              const processedBeat = processNote(beat);
-              console.log('Processed beat for display:', processedBeat);
-              
-              return (
-                <div 
-                  key={key} 
-                  className="text-center p-1 border-r border-gray-100 last:border-r-0 relative group"
-                  title={`Beat ${groupIndex * 4 + beatIndex + 1}`}
-                >
-                  <div className={`text-sm ${
-                    processedBeat.type === 'lyrics' ? 'text-blue-600' : 
-                    'text-black'
-                  }`}>
-                    {renderNote(beat, beatIndex)}
-                  </div>
-                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                    Beat {groupIndex * 4 + beatIndex + 1}
-                  </div>
+            {group.map((beat, beatIndex) => (
+              <div 
+                key={`${groupIndex}-${beatIndex}`} 
+                className="text-center p-1 border-r border-gray-100 last:border-r-0 relative group"
+                title={`Beat ${groupIndex * 4 + beatIndex + 1}`}
+              >
+                {renderNote(beat, beatIndex)}
+                <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                  Beat {groupIndex * 4 + beatIndex + 1}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         </div>
       ))}
@@ -251,20 +188,14 @@ const parseSURFile = (content: string): SurDocument => {
 
 const PDFExporter = ({ config, composition }) => {
   const generatePDF = () => {
-    // Create a hidden div with formatted content
     const container = document.createElement('div');
-    container.style.display = 'none';
+    container.style.padding = '20px';
     document.body.appendChild(container);
 
     // Add title and metadata
-    const title = document.createElement('h1');
-    title.textContent = config.name || 'Untitled';
-    container.appendChild(title);
-
     const metadata = document.createElement('div');
     metadata.innerHTML = `
-      <p><strong>Raag:</strong> ${config.raag || ''}</p>
-      <p><strong>Taal:</strong> ${config.taal || ''}</p>
+      <h1>${config.name || ''}</h1>
       <p><strong>Tempo:</strong> ${config.tempo || ''}</p>
       <p><strong>Beats per Row:</strong> ${config.beats_per_row || ''}</p>
     `;
@@ -283,29 +214,78 @@ const PDFExporter = ({ config, composition }) => {
         const lineDiv = document.createElement('div');
         lineDiv.className = 'line';
         
-        const beats = line.beats.map(note => {
-          if (typeof note === 'number') return note.toString();
-          return note.sur || note.lyrics || '-';
-        }).join(' ');
+        line.beats.forEach(beat => {
+          const beatSpan = document.createElement('span');
+          
+          if (typeof beat === 'number') {
+            beatSpan.textContent = beat.toString();
+            beatSpan.className = 'text-gray-500';
+          } else if (beat.isSpecial) {
+            beatSpan.textContent = beat.sur;
+            beatSpan.className = 'text-gray-400';
+          } else if (beat.lyrics) {
+            beatSpan.textContent = beat.lyrics;
+            beatSpan.className = 'text-blue-600';
+          } else if (beat.mixed) {
+            beatSpan.textContent = beat.mixed.map(part => {
+              if (part.isSpecial) return part.sur;
+              if (part.lyrics) return part.lyrics;
+              if (part.compound) {
+                return part.compound.map(n => renderNoteWithOctave(n)).join('');
+              }
+              return renderNoteWithOctave(part);
+            }).join('');
+          } else if (beat.compound) {
+            beatSpan.textContent = beat.compound.map(note => 
+              renderNoteWithOctave(note)
+            ).join('');
+          } else {
+            beatSpan.textContent = renderNoteWithOctave(beat);
+          }
+          
+          lineDiv.appendChild(beatSpan);
+        });
         
-        lineDiv.textContent = beats;
         section.appendChild(lineDiv);
       });
 
       container.appendChild(section);
     });
 
-    // Use html2pdf to generate PDF
-    const element = container;
+    // Add CSS styles
+    const style = document.createElement('style');
+    style.textContent = `
+      .section { margin-bottom: 24px; }
+      .line { 
+        display: grid;
+        grid-template-columns: repeat(16, 1fr);
+        border-left: 1px solid #e5e7eb;
+        border-right: 1px solid #e5e7eb;
+      }
+      .line > span {
+        padding: 4px;
+        border-right: 1px solid #e5e7eb;
+        text-align: center;
+      }
+      .line > span:last-child {
+        border-right: none;
+      }
+      .text-blue-600 { color: #2563eb; }
+      .text-gray-500 { color: #6b7280; }
+      .text-gray-400 { color: #9ca3af; }
+    `;
+    container.appendChild(style);
+
+    // Generate PDF
     const opt = {
-      margin:       1,
-      filename:     `${config.name || 'composition'}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2 },
-      jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+      margin: 1,
+      filename: `${config.name || 'composition'}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
     };
 
-    html2pdf().from(element).set(opt).save().then(() => {
+    html2pdf().from(container).set(opt).save().then(() => {
       document.body.removeChild(container);
     });
   };

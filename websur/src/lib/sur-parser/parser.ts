@@ -59,20 +59,22 @@ export class SurParser {
       
       while (i < note.length) {
         if (note[i] === '.') {
-          // Lower octave marker
+          // Lower octave marker applies only to the next note
           i++;
           if (i < note.length && /[SRGMPDN]/.test(note[i])) {
             notes.push({
               sur: note[i],
               octave: 'lower'
             });
+            i++;
           }
         } else if (/[SRGMPDN]/.test(note[i])) {
           // Found a note
           const sur = note[i];
           i++;
           // Check if next char is an upper octave marker
-          if (i < note.length && note[i] === "'") {
+          const hasUpperOctave = i < note.length && note[i] === "'";
+          if (hasUpperOctave) {
             notes.push({
               sur: sur,
               octave: 'upper'
@@ -97,15 +99,15 @@ export class SurParser {
     }
 
     // Handle single note with octave
-    if (note.endsWith("'")) {
-      return {
-        octave: 'upper',
-        sur: note.slice(0, -1)
-      };
-    } else if (note.startsWith('.')) {
+    if (note.startsWith('.')) {
       return {
         octave: 'lower',
         sur: note.slice(1)
+      };
+    } else if (note.endsWith("'")) {
+      return {
+        octave: 'upper',
+        sur: note.slice(0, -1)
       };
     }
 
@@ -120,11 +122,36 @@ export class SurParser {
     console.log('Parsing note:', noteStr);
     const trimmedNote = noteStr.trim();
     
+    // Handle notes followed by special characters (N-, .N-, N'-)
+    if (/^(?:\.[SRGMPDN]|[SRGMPDN]'?|[SRGMPDN])[-*]$/.test(trimmedNote)) {
+      const hasLowerOctave = trimmedNote.startsWith('.');
+      const hasUpperOctave = trimmedNote.includes("'");
+      let notePart = trimmedNote.slice(0, -1); // Remove special char
+      let sur = notePart;
+      
+      if (hasLowerOctave) {
+        sur = notePart.slice(1);  // Remove the dot
+      } else if (hasUpperOctave) {
+        sur = notePart.slice(0, -1);  // Remove the quote
+      }
+      
+      return {
+        mixed: [
+          {
+            sur: sur,
+            octave: hasLowerOctave ? 'lower' : hasUpperOctave ? 'upper' : 'middle'
+          },
+          { isSpecial: true, sur: trimmedNote.slice(-1) }
+        ]
+      };
+    }
+
     // Handle special characters with notes (*S and -S)
     if ((trimmedNote.startsWith('*') || trimmedNote.startsWith('-')) && trimmedNote.length > 1) {
       const specialChar = trimmedNote[0];
       const remainingNote = trimmedNote.slice(1);
-      const parsedNote = this.parseNote(remainingNote);
+      const parsedNote = this.parseNoteOctave(remainingNote);
+      
       return {
         mixed: [
           { isSpecial: true, sur: specialChar },
@@ -141,56 +168,8 @@ export class SurParser {
       return { isSpecial: true, sur: '*' };
     }
 
-    // Handle bracketed content
-    if (trimmedNote.startsWith('[') && trimmedNote.endsWith(']')) {
-      const innerContent = trimmedNote.slice(1, -1).trim();
-      const parts = innerContent.split(/\s+/);
-      
-      // If all parts are valid notes or valid notes with octave markers
-      if (parts.every(p => this.isValidSurNote(p.replace(/['\.]/g, '')))) {
-        if (parts.length === 1) {
-          return this.parseNoteOctave(parts[0]);
-        }
-        return {
-          compound: parts.map(p => {
-            const result = this.parseNoteOctave(p);
-            if ('compound' in result) {
-              return result.compound[0];
-            }
-            return {
-              octave: result.octave || 'middle',
-              sur: result.sur || ''
-            };
-          })
-        };
-      }
-      
-      // Handle mixed content (lyrics + notes)
-      const mixedParts = parts.map(part => {
-        const cleaned = part.replace(/['\.]/g, '');
-        if (this.isValidSurNote(cleaned)) {
-          return this.parseNoteOctave(part);
-        }
-        return { lyrics: part };
-      });
-      
-      if (mixedParts.length > 1) {
-        return { mixed: mixedParts };
-      }
-      
-      // Single part that's not a valid note is treated as lyrics
-      return { lyrics: innerContent };
-    }
-
-    // Handle single notes with octave
-    const cleaned = trimmedNote.replace(/['\.]/g, '');
-    if (this.isValidSurNote(cleaned)) {
-      return this.parseNoteOctave(trimmedNote);
-    }
-
-    // Everything else is lyrics
-    const lyricMatch = trimmedNote.match(/^"([^"]+)"$/) || [null, trimmedNote];
-    return { lyrics: lyricMatch[1] };
+    // Handle compound notes or single notes with octaves
+    return this.parseNoteOctave(trimmedNote);
   }
 
   private parseBeat(beatStr: string, row: number, beatNumber: number): Beat {
