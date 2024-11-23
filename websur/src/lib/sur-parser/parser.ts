@@ -302,7 +302,7 @@ export class SurParser {
           sections.push(currentSection);
         }
         currentSection = {
-          name: trimmedLine.slice(1),
+          title: trimmedLine.slice(1).trim(),
           beats: []
         };
         currentRow = 0;

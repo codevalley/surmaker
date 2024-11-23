@@ -132,38 +132,17 @@ const BeatGrid: React.FC<BeatGridProps> = ({ beats = [], totalBeats = 16, groupS
     } as Beat);
   }
 
-  // Group beats
-  const groups = [];
-  for (let i = 0; i < totalBeats; i += groupSize) {
-    const group = beatsToRender.slice(i, i + groupSize);
-    groups.push(group);
-  }
-
   return (
-    <div className="grid grid-cols-4 gap-0 border border-gray-200 rounded-lg">
-      {groups.map((group, groupIndex) => (
-        <div key={groupIndex} className="border-r border-gray-200 last:border-r-0">
-          <div className="grid grid-cols-4">
-            {group.map((beat, beatIndex) => {
-              const renderedBeat = renderBeat(beat);
-              const isLyrics = typeof beat !== 'number' && 
-                             beat?.elements?.some(e => e?.lyrics) || false;
-              const className = isLyrics ? 'text-blue-600 font-medium' : 'text-black';
-              
-              return (
-                <div 
-                  key={`${groupIndex}-${beatIndex}`} 
-                  className="text-center p-1 border-r border-gray-100 last:border-r-0 relative group"
-                  title={`Beat ${groupIndex * groupSize + beatIndex + 1}`}
-                >
-                  <span className={className}>{renderedBeat}</span>
-                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                    Beat {groupIndex * groupSize + beatIndex + 1}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+    <div className="grid grid-cols-16 gap-1">
+      {beatsToRender.map((beat, index) => (
+        <div
+          key={index}
+          className={`border p-2 text-center hover:bg-gray-50 transition-colors ${
+            index % groupSize === 0 ? 'border-l-2' : ''
+          }`}
+          title={`Beat ${index + 1}`}
+        >
+          {typeof beat === 'number' ? beat : formatter.formatBeat(beat)}
         </div>
       ))}
     </div>
@@ -389,6 +368,71 @@ const SUREditor: React.FC<{ content: string; onChange: (content: string) => void
   );
 };
 
+interface PreviewProps {
+  document: SurDocument;
+}
+
+const formatter = new SurFormatter();
+
+export function Preview({ document }: PreviewProps) {
+  if (!document) return null;
+
+  // Calculate total beats
+  const totalBeats = document.composition.sections.reduce(
+    (sum, section) => sum + section.beats.length,
+    0
+  );
+
+  return (
+    <div className="preview-container">
+      {/* Title Section */}
+      <h1 className="text-2xl font-bold mb-4">
+        {document.metadata.name || 'Untitled Composition'}
+      </h1>
+
+      {/* Metadata Section */}
+      <div className="metadata-section mb-4">
+        <div className="grid grid-cols-2 gap-2">
+          <div>Raag:</div>
+          <div>{document.metadata.raag || 'Not specified'}</div>
+          <div>Taal:</div>
+          <div>{document.metadata.taal || 'Not specified'}</div>
+          <div>Tempo:</div>
+          <div>{document.metadata.tempo || 'Not specified'}</div>
+        </div>
+      </div>
+
+      {/* Statistics */}
+      <div className="stats-section mb-4">
+        <p>Total Beats: {totalBeats}</p>
+      </div>
+
+      {/* Composition Sections */}
+      {document.composition.sections.map((section, sectionIndex) => (
+        <div key={sectionIndex} className="section-container mb-6">
+          {/* Section Header */}
+          <h2 className="text-xl font-semibold mb-2">
+            {section.title || 'Untitled Section'}
+          </h2>
+
+          {/* Beats Grid */}
+          <div className="grid grid-cols-8 gap-2">
+            {section.beats.map((beat, beatIndex) => (
+              <div
+                key={beatIndex}
+                className="border p-2 text-center"
+                title={`Beat ${beatIndex + 1}`}
+              >
+                {formatter.formatBeat(beat)}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const SUREditorViewer = () => {
   const [content, setContent] = useState(DEFAULT_SUR);
   const [hideControls, setHideControls] = useState(false);
@@ -410,58 +454,155 @@ const SUREditorViewer = () => {
           
           <TabsContent value="preview">
             <Card className="w-full">
-              <CardHeader className="border-b border-gray-200">
-                <div className="flex justify-between items-start">
-                  <div onClick={toggleControls}>
-                    <CardTitle className="text-2xl font-bold mb-2">
-                      Preview
-                    </CardTitle>
+              <CardHeader className="border-b border-gray-200 pb-6">
+                {/* First Row: Title and Download Button */}
+                <div className="flex justify-between items-center mb-4">
+                  <CardTitle className="text-3xl font-bold">
+                    {(() => {
+                      try {
+                        const surDoc = parseSURFile(content);
+                        return surDoc.metadata.name || 'Untitled Composition';
+                      } catch (e) {
+                        return 'Preview';
+                      }
+                    })()}
+                  </CardTitle>
+                  {(() => {
+                    try {
+                      const surDoc = parseSURFile(content);
+                      return (
+                        <PDFExporter 
+                          config={{
+                            name: surDoc.metadata.name || 'Untitled',
+                            tempo: surDoc.metadata.tempo,
+                            beats_per_row: surDoc.metadata.beats_per_row
+                          }}
+                          composition={surDoc.composition.sections.map(section => ({
+                            title: section.title,
+                            lines: groupBeatsIntoLines(section.beats).map(line => ({
+                              beats: line
+                            }))
+                          }))}
+                        />
+                      );
+                    } catch (e) {
+                      return null;
+                    }
+                  })()}
+                </div>
+
+                {/* Second Row: Metadata */}
+                <div className="cursor-pointer" onClick={toggleControls}>
+                  <div className={`metadata-section ${hideControls ? 'hidden' : ''}`}>
+                    {(() => {
+                      try {
+                        const surDoc = parseSURFile(content);
+                        return (
+                          <div className="bg-gray-50 rounded-lg p-4">
+                            <dl className="grid grid-cols-3 gap-6">
+                              <div>
+                                <dt className="text-sm font-medium text-gray-500 mb-1">Raag</dt>
+                                <dd className="text-base font-semibold text-gray-900">
+                                  {surDoc.metadata.raag || 'Not specified'}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-sm font-medium text-gray-500 mb-1">Taal</dt>
+                                <dd className="text-base font-semibold text-gray-900">
+                                  {surDoc.metadata.taal || 'Not specified'}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-sm font-medium text-gray-500 mb-1">Tempo</dt>
+                                <dd className="text-base font-semibold text-gray-900">
+                                  {surDoc.metadata.tempo || 'Not specified'}
+                                </dd>
+                              </div>
+                            </dl>
+                          </div>
+                        );
+                      } catch (e) {
+                        return null;
+                      }
+                    })()}
                   </div>
                 </div>
               </CardHeader>
-              
+
               <CardContent className="p-6">
                 <div className="space-y-6">
                   {/* Beat numbers row */}
                   <div className="mb-3 font-mono text-sm">
                     <div className="text-gray-600 mb-0.5">Beat:</div>
-                    <BeatGrid 
-                      beats={Array.from({length: 16}, (_, i) => i + 1)} 
-                      totalBeats={16} 
-                      groupSize={4}
-                    />
+                    <div className="grid grid-cols-4 gap-0 border border-gray-200 rounded-lg">
+                      {[0, 1, 2, 3].map((group) => (
+                        <div key={group} className="border-r border-gray-200 last:border-r-0">
+                          <div className="grid grid-cols-4">
+                            {[1, 2, 3, 4].map((num) => {
+                              const beatNum = group * 4 + num;
+                              return (
+                                <div
+                                  key={beatNum}
+                                  className="text-center p-2 border-r border-gray-100 last:border-r-0"
+                                  title={`Beat ${beatNum}`}
+                                >
+                                  {beatNum}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  
+
                   {/* Composition sections */}
                   {(() => {
                     try {
                       const surDoc = parseSURFile(content);
-                      console.log('Rendering document:', surDoc);
+                      const formatter = new SurFormatter();
                       
                       return surDoc.composition.sections.map((section, sectionIdx) => {
-                        console.log('Rendering section:', section.title, 'beats:', section.beats);
-                        
-                        if (!Array.isArray(section.beats)) {
-                          console.error('Section beats is not an array:', section.beats);
-                          return null;
-                        }
-
                         // Group beats into lines
                         const beatLines = groupBeatsIntoLines(section.beats);
 
                         return (
                           <div key={sectionIdx} className="space-y-1.5">
-                            <h3 className="text-lg font-semibold text-blue-600 mb-1">
+                            <h3 className="text-lg font-semibold text-blue-600 mb-2">
                               {section.title}
                             </h3>
                             <div className="font-mono text-sm space-y-2">
                               {beatLines.map((beatLine, lineIdx) => (
-                                <BeatGrid 
-                                  key={`${sectionIdx}-${lineIdx}`}
-                                  beats={beatLine} 
-                                  totalBeats={16} 
-                                  groupSize={4}
-                                />
+                                <div key={`${sectionIdx}-${lineIdx}`} 
+                                     className="grid grid-cols-4 gap-0 border border-gray-200 rounded-lg">
+                                  {[0, 1, 2, 3].map((group) => (
+                                    <div key={group} className="border-r border-gray-200 last:border-r-0">
+                                      <div className="grid grid-cols-4">
+                                        {[0, 1, 2, 3].map((num) => {
+                                          const beatIndex = group * 4 + num;
+                                          const beat = beatLine[beatIndex] || {
+                                            elements: [{ note: { pitch: NotePitch.SILENCE } }],
+                                            bracketed: false
+                                          };
+                                          return (
+                                            <div
+                                              key={beatIndex}
+                                              className={`text-center p-2 border-r border-gray-100 last:border-r-0 relative group ${
+                                                beat.elements.some(e => e.lyrics) ? 'text-blue-600' : ''
+                                              }`}
+                                            >
+                                              {formatter.formatBeat(beat)}
+                                              {/* Tooltip */}
+                                              <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                                                Beat {lineIdx * 16 + beatIndex + 1}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
                               ))}
                             </div>
                           </div>

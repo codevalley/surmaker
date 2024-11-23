@@ -86,7 +86,7 @@ export class SurFormatter {
     );
   }
 
-  private formatBeat(beat: Beat): string {
+  public formatBeat(beat: Beat): string {
     if (!beat || !beat.elements || beat.elements.length === 0) {
       return '-';
     }
