@@ -1,5 +1,9 @@
 import { Beat, Element, Note, NotePitch } from './types';
 
+// Unicode combining characters for octave markers
+const UPPER_BAR = '\u0305'; // Combining overline
+const LOWER_BAR = '\u0332'; // Combining underline
+
 export class SurFormatter {
   private formatNote(note: Note): string {
     if (!note) return '';
@@ -8,14 +12,14 @@ export class SurFormatter {
     if (note.pitch === NotePitch.SILENCE) return '-';
     if (note.pitch === NotePitch.SUSTAIN) return '*';
     
-    // Format the note with octave markers
-    let noteStr = note.pitch.toString();
+    // Get the base note string
+    const noteStr = note.pitch.toString();
     
-    // Add octave markers
+    // Add octave markers using combining characters
     if (note.octave === 1) {
-      noteStr += "'";  // Upper octave
+      return `${noteStr}${UPPER_BAR}`;  // Add bar above
     } else if (note.octave === -1) {
-      noteStr = '.' + noteStr;  // Lower octave
+      return `${noteStr}${LOWER_BAR}`;  // Add bar below
     }
     
     return noteStr;
