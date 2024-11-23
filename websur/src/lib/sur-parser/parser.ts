@@ -5,16 +5,339 @@ import {
   Composition,
   Section,
   Beat,
-  Note
+  Note,
+  Token,
+  TokenType,
+  ParsingElement,
+  ElementType,
+  NotePitch,
+  NoteVariant
 } from './types';
 
-const SECTION_MARKER = '#';
-const CONFIG_MARKER = '%%';
-const SCALE_MARKER = '@SCALE';
-const COMPOSITION_MARKER = '@COMPOSITION';
-const BEAT_MARKER = 'b:';
-
 export class SurParser {
+  // Regex patterns for tokenization
+  private readonly notePattern = String.raw`(?:\.|,)*[SRGMPDN](?:'|,)*|-|\*`;  // Matches .S, S', S, etc. and - *
+  private readonly quotedLyrics = String.raw`"[^"]*"`;  // Matches anything in quotes
+  private readonly symbols = String.raw`[\[\]:]`;  // Matches brackets and colon
+  private readonly separator = String.raw`\s+`;  // Matches whitespace
+  private readonly mixedText = String.raw`[a-zA-Z][a-zA-Z0-9]*`;  // Matches text without spaces/symbols
+
+  private tokenize(text: string): Token[] {
+    const tokens: Token[] = [];
+    let i = 0;
+    
+    while (i < text.length) {
+      const char = text[i];
+      
+      // Skip whitespace outside of quotes
+      if (char === ' ' || char === '\t') {
+        i++;
+        continue;
+      }
+      
+      // Handle quoted lyrics
+      if (char === '"') {
+        let lyrics = '';
+        i++; // Skip opening quote
+        while (i < text.length && text[i] !== '"') {
+          lyrics += text[i];
+          i++;
+        }
+        i++; // Skip closing quote
+        tokens.push({ type: TokenType.LYRICS, value: lyrics });
+        continue;
+      }
+      
+      // Handle notes with octave markers
+      if (char === '.' || char === '\'' || this.isNote(char)) {
+        let note = '';
+        if (char === '.') {
+          note = char;
+          i++;
+        }
+        if (i < text.length && this.isNote(text[i])) {
+          note += text[i];
+          i++;
+        }
+        if (i < text.length && text[i] === '\'') {
+          note += text[i];
+          i++;
+        }
+        if (note) {
+          tokens.push({ type: TokenType.NOTE, value: note });
+        }
+        continue;
+      }
+      
+      // Handle unquoted lyrics (single words without spaces)
+      if (/[a-z]/i.test(char)) {
+        let lyrics = '';
+        while (i < text.length && /[a-z]/i.test(text[i])) {
+          lyrics += text[i];
+          i++;
+        }
+        tokens.push({ type: TokenType.LYRICS, value: lyrics });
+        continue;
+      }
+      
+      // Handle special characters
+      switch (char) {
+        case ':':
+          tokens.push({ type: TokenType.COLON, value: ':' });
+          break;
+        case '[':
+          tokens.push({ type: TokenType.OPEN_BRACKET, value: '[' });
+          break;
+        case ']':
+          tokens.push({ type: TokenType.CLOSE_BRACKET, value: ']' });
+          break;
+        case '-':
+          tokens.push({ type: TokenType.NOTE, value: '-' });
+          break;
+        case '*':
+          tokens.push({ type: TokenType.NOTE, value: '*' });
+          break;
+      }
+      i++;
+    }
+    
+    return tokens;
+  }
+
+  private isNote(char: string): boolean {
+    return ['S', 'R', 'G', 'M', 'P', 'D', 'N'].includes(char.toUpperCase());
+  }
+
+  private parseNote(text: string): Note | null {
+    console.log('Parsing note:', text);
+    if (!text) {
+      console.log('Empty note text');
+      return null;
+    }
+
+    // Handle special notes (silence and sustain)
+    if (text === '-') {
+      console.log('Found silence note');
+      return { pitch: NotePitch.SILENCE };
+    }
+    if (text === '*') {
+      console.log('Found sustain note');
+      return { pitch: NotePitch.SUSTAIN };
+    }
+
+    // Parse octave
+    let octave = 0;
+    let workingText = text;
+    
+    while (workingText.endsWith("'")) {
+      octave += 1;
+      workingText = workingText.slice(0, -1);
+      console.log('Found upper octave, current octave:', octave);
+    }
+    while (workingText.endsWith(',')) {
+      octave -= 1;
+      workingText = workingText.slice(0, -1);
+      console.log('Found lower octave (comma), current octave:', octave);
+    }
+    while (workingText.startsWith('.')) {
+      octave -= 1;
+      workingText = workingText.slice(1);
+      console.log('Found lower octave (dot), current octave:', octave);
+    }
+
+    // Parse pitch
+    try {
+      console.log('Parsing pitch:', workingText);
+      const pitch = NotePitch[workingText as keyof typeof NotePitch];
+      if (pitch === undefined) {
+        console.error('Invalid pitch:', workingText);
+        return null;
+      }
+      console.log('Found valid pitch:', pitch, 'with octave:', octave);
+      return { pitch, octave };
+    } catch (e) {
+      console.error('Error parsing note:', text, e);
+      return null;
+    }
+  }
+
+  private tokensToElements(tokens: Token[]): ParsingElement[] {
+    const elements: ParsingElement[] = [];
+    let i = 0;
+
+    console.log('Converting tokens to elements:', tokens.map(t => `${t.type}(${t.value})`));
+
+    while (i < tokens.length) {
+      const token = tokens[i];
+
+      switch (token.type) {
+        case TokenType.SEPARATOR:
+          elements.push({ type: ElementType.SEPARATOR });
+          i++;
+          break;
+
+        case TokenType.OPEN_BRACKET:
+          elements.push({ type: ElementType.OPEN_BRACKET });
+          i++;
+          break;
+
+        case TokenType.CLOSE_BRACKET:
+          elements.push({ type: ElementType.CLOSE_BRACKET });
+          i++;
+          break;
+
+        case TokenType.NOTE:
+          const note = this.parseNote(token.value);
+          if (note) {
+            elements.push({
+              type: ElementType.NORMAL,
+              note
+            });
+          }
+          i++;
+          break;
+
+        case TokenType.LYRICS:
+          if (i + 2 < tokens.length && 
+              tokens[i + 1].type === TokenType.COLON && 
+              tokens[i + 2].type === TokenType.NOTE) {
+            const note = this.parseNote(tokens[i + 2].value);
+            if (note) {
+              elements.push({
+                type: ElementType.NORMAL,
+                lyrics: token.value,
+                note
+              });
+            }
+            i += 3;
+          } else {
+            elements.push({
+              type: ElementType.NORMAL,
+              lyrics: token.value
+            });
+            i++;
+          }
+          break;
+
+        default:
+          i++;
+          break;
+      }
+    }
+
+    console.log('Elements:', elements.map(e => 
+      `${e.type}(${e.lyrics || ''} ${e.note ? JSON.stringify(e.note) : ''})`
+    ));
+
+    return elements;
+  }
+
+  private elementsToBeats(elements: ParsingElement[]): Beat[] {
+    const beats: Beat[] = [];
+    let currentElements: ParsingElement[] = [];
+    let bracketElements: ParsingElement[] = [];
+    let inBracket = false;
+
+    const createBeat = (elems: ParsingElement[]) => {
+      if (elems.length > 0) {
+        // Only include the lyrics and note properties in the final elements
+        const cleanElements = elems.map(({ lyrics, note }) => ({
+          ...(lyrics && { lyrics }),
+          ...(note && { note })
+        }));
+        beats.push({ elements: cleanElements });
+      }
+    };
+
+    for (const element of elements) {
+      if (element.type === ElementType.SEPARATOR) {
+        if (!inBracket && currentElements.length > 0) {
+          createBeat(currentElements);
+          currentElements = [];
+        }
+      } else if (element.type === ElementType.OPEN_BRACKET) {
+        if (currentElements.length > 0) {
+          createBeat(currentElements);
+          currentElements = [];
+        }
+        inBracket = true;
+        bracketElements = [];
+      } else if (element.type === ElementType.CLOSE_BRACKET) {
+        inBracket = false;
+        if (bracketElements.length > 0) {
+          createBeat(bracketElements);
+          bracketElements = [];
+        }
+      } else if (element.type === ElementType.NORMAL) {
+        if (inBracket) {
+          bracketElements.push(element);
+        } else {
+          currentElements.push(element);
+        }
+      }
+    }
+
+    if (currentElements.length > 0) {
+      createBeat(currentElements);
+    }
+
+    console.log('Beats:', beats.map(b => 
+      `Beat(${b.elements.map(e => 
+        e.lyrics ? e.lyrics : e.note ? JSON.stringify(e.note) : 'unknown'
+      ).join(', ')})`
+    ));
+
+    return beats;
+  }
+
+  private parseComposition(lines: string[]): Composition {
+    const sections: Section[] = [];
+    let currentSection: Section | null = null;
+    let currentRow = 0;
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      
+      if (!trimmedLine) {
+        continue;
+      }
+
+      if (trimmedLine.startsWith('#')) {
+        // New section
+        if (currentSection) {
+          sections.push(currentSection);
+        }
+        currentSection = {
+          name: trimmedLine.slice(1),
+          beats: []
+        };
+        currentRow = 0;
+      } else if (trimmedLine.startsWith('b:')) {
+        if (!currentSection) {
+          console.warn('Found beat line without a section:', trimmedLine);
+          continue;
+        }
+
+        // Remove the 'b:' prefix and tokenize
+        const beatLine = trimmedLine.slice(2).trim();
+        const tokens = this.tokenize(beatLine);
+        const elements = this.tokensToElements(tokens);
+        const beats = this.elementsToBeats(elements);
+        
+        if (beats.length > 0) {
+          currentSection.beats.push(...beats);
+          currentRow++;
+        }
+      }
+    }
+
+    if (currentSection) {
+      sections.push(currentSection);
+    }
+
+    return { sections };
+  }
+
   private parseMetadata(lines: string[]): SurMetadata {
     const metadata: SurMetadata = {};
     
@@ -44,223 +367,7 @@ export class SurParser {
     return { notes };
   }
 
-  private isValidSurNote(note: string): boolean {
-    // Remove octave markers
-    const cleanNote = note.replace(/^\./, '').replace(/'/g, '');
-    // Check if it's a sequence of valid notes (S, R, G, M, P, D, N)
-    return /^[SRGMPDN]+$/.test(cleanNote);
-  }
-
-  private parseNoteOctave(note: string): Partial<Note> {
-    // For compound notes, we need to handle individual octave markers
-    if (note.length > 1) {
-      const notes: Array<{ sur: string; octave: 'upper' | 'middle' | 'lower' }> = [];
-      let i = 0;
-      
-      while (i < note.length) {
-        if (note[i] === '.') {
-          // Lower octave marker applies only to the next note
-          i++;
-          if (i < note.length && /[SRGMPDN]/.test(note[i])) {
-            notes.push({
-              sur: note[i],
-              octave: 'lower'
-            });
-            i++;
-          }
-        } else if (/[SRGMPDN]/.test(note[i])) {
-          // Found a note
-          const sur = note[i];
-          i++;
-          // Check if next char is an upper octave marker
-          const hasUpperOctave = i < note.length && note[i] === "'";
-          if (hasUpperOctave) {
-            notes.push({
-              sur: sur,
-              octave: 'upper'
-            });
-            i++;
-          } else {
-            notes.push({
-              sur: sur,
-              octave: 'middle'
-            });
-          }
-        } else {
-          i++;
-        }
-      }
-      
-      if (notes.length > 1) {
-        return { compound: notes };
-      } else if (notes.length === 1) {
-        return notes[0];
-      }
-    }
-
-    // Handle single note with octave
-    if (note.startsWith('.')) {
-      return {
-        octave: 'lower',
-        sur: note.slice(1)
-      };
-    } else if (note.endsWith("'")) {
-      return {
-        octave: 'upper',
-        sur: note.slice(0, -1)
-      };
-    }
-
-    // Single note in middle octave
-    return {
-      octave: 'middle',
-      sur: note
-    };
-  }
-
-  private parseNote(noteStr: string): Note {
-    console.log('Parsing note:', noteStr);
-    const trimmedNote = noteStr.trim();
-    
-    // Handle notes followed by special characters (N-, .N-, N'-)
-    if (/^(?:\.[SRGMPDN]|[SRGMPDN]'?|[SRGMPDN])[-*]$/.test(trimmedNote)) {
-      const hasLowerOctave = trimmedNote.startsWith('.');
-      const hasUpperOctave = trimmedNote.includes("'");
-      let notePart = trimmedNote.slice(0, -1); // Remove special char
-      let sur = notePart;
-      
-      if (hasLowerOctave) {
-        sur = notePart.slice(1);  // Remove the dot
-      } else if (hasUpperOctave) {
-        sur = notePart.slice(0, -1);  // Remove the quote
-      }
-      
-      return {
-        mixed: [
-          {
-            sur: sur,
-            octave: hasLowerOctave ? 'lower' : hasUpperOctave ? 'upper' : 'middle'
-          },
-          { isSpecial: true, sur: trimmedNote.slice(-1) }
-        ]
-      };
-    }
-
-    // Handle special characters with notes (*S and -S)
-    if ((trimmedNote.startsWith('*') || trimmedNote.startsWith('-')) && trimmedNote.length > 1) {
-      const specialChar = trimmedNote[0];
-      const remainingNote = trimmedNote.slice(1);
-      const parsedNote = this.parseNoteOctave(remainingNote);
-      
-      return {
-        mixed: [
-          { isSpecial: true, sur: specialChar },
-          parsedNote
-        ]
-      };
-    }
-    
-    // Handle standalone special characters
-    if (trimmedNote === '-') {
-      return { isSpecial: true, sur: '-' };
-    }
-    if (trimmedNote === '*') {
-      return { isSpecial: true, sur: '*' };
-    }
-
-    // Handle compound notes or single notes with octaves
-    return this.parseNoteOctave(trimmedNote);
-  }
-
-  private parseBeat(beatStr: string, row: number, beatNumber: number): Beat {
-    console.log('Parsing beat:', beatStr);
-    
-    // Remove 'b:' and trim
-    const content = beatStr.replace(/^b:/, '').trim();
-    
-    // Handle bracketed groups while preserving spaces within brackets
-    const tokens: string[] = [];
-    let currentToken = '';
-    let inBrackets = false;
-    
-    for (let i = 0; i < content.length; i++) {
-      const char = content[i];
-      if (char === '[') {
-        inBrackets = true;
-        currentToken = '[';
-      } else if (char === ']') {
-        inBrackets = false;
-        currentToken += ']';
-        tokens.push(currentToken);
-        currentToken = '';
-      } else if (!inBrackets && char === ' ') {
-        if (currentToken) {
-          tokens.push(currentToken);
-          currentToken = '';
-        }
-      } else {
-        currentToken += char;
-      }
-    }
-    if (currentToken) {
-      tokens.push(currentToken);
-    }
-
-    const notes: Note[] = tokens.map(token => this.parseNote(token));
-
-    const beat = {
-      position: { row, beat_number: beatNumber },
-      notes
-    };
-    console.log('Parsed beat:', beat);
-    return beat;
-  }
-
-  private parseComposition(lines: string[]): Composition {
-    console.log('Parsing composition, lines:', lines);
-    const sections: Section[] = [];
-    let currentSection: Section | null = null;
-    let currentRow = 0;
-
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-      if (!trimmedLine) continue;
-      
-      console.log('Processing line:', trimmedLine);
-      
-      if (trimmedLine.startsWith('#')) {
-        // New section
-        if (currentSection) {
-          sections.push(currentSection);
-        }
-        currentSection = {
-          name: trimmedLine.substring(1).trim(),
-          beats: []
-        };
-        currentRow = 0;
-        console.log('Created new section:', currentSection);
-      } else if (trimmedLine.startsWith('b:')) {
-        if (!currentSection) {
-          console.warn('Found beat line without a section:', trimmedLine);
-          continue;
-        }
-        const beat = this.parseBeat(trimmedLine, currentRow, currentSection.beats.length);
-        currentSection.beats.push(beat);
-        currentRow++;
-        console.log('Added beat to section:', beat);
-      }
-    }
-
-    if (currentSection) {
-      sections.push(currentSection);
-    }
-
-    console.log('Final sections:', sections);
-    return { sections };
-  }
-
   public parse(content: string): SurDocument {
-    console.log('Parsing content:', content);
     const lines = content.split('\n').map(line => line.trim());
     let currentSection: 'config' | 'scale' | 'composition' | null = null;
     const sectionLines: Record<string, string[]> = {
@@ -270,45 +377,34 @@ export class SurParser {
     };
 
     for (const line of lines) {
-      // Skip empty lines and comments
       if (!line || line.startsWith('//')) continue;
 
       // Determine section
       if (line === '%% CONFIG') {
         currentSection = 'config';
-        console.log('Switched to config section');
         continue;
       } else if (line === '%% SCALE') {
         currentSection = 'scale';
-        console.log('Switched to scale section');
         continue;
       } else if (line === '%% COMPOSITION') {
         currentSection = 'composition';
-        console.log('Switched to composition section');
         continue;
       }
 
       // Add line to current section
       if (currentSection) {
-        // For config section, only add lines with ':'
-        if (currentSection === 'config') {
-          if (line.includes(':')) {
-            sectionLines[currentSection].push(line);
-          }
+        if (line.startsWith('%%')) {
+          currentSection = null;
         } else {
           sectionLines[currentSection].push(line);
         }
       }
     }
 
-    console.log('Section lines:', sectionLines);
-
     const metadata = this.parseMetadata(sectionLines.config);
     const scale = this.parseScale(sectionLines.scale);
     const composition = this.parseComposition(sectionLines.composition);
 
-    const doc = { metadata, scale, composition };
-    console.log('Final parsed document:', doc);
-    return doc;
+    return { metadata, scale, composition };
   }
 }

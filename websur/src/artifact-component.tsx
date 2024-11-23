@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Download, FileText } from 'lucide-react';
-import { SurParser, SurDocument, Note } from './lib/sur-parser';
+import { SurParser, SurDocument, Note, Beat, Element, ElementType, NotePitch } from './lib/sur-parser';
 import html2pdf from 'html2pdf.js';
 
 const DEFAULT_SUR = `%% CONFIG
@@ -54,101 +54,78 @@ b: [-][aa][-][oo][-][re][-][be][-][la][-][sa][-][ja][nn][-]
 b: [aa][-][oo][-][re][-][-][-][-][-][-][-][-][-][-][-]`;
 
 interface BeatGridProps {
-  beats: (Note | number)[];
+  beats: Beat[] | number[];
   totalBeats?: number;
   groupSize?: number;
 }
-
-const processNote = (note: Note): {
-  text: string;
-  type: 'note' | 'lyrics' | 'special';
-  display: string;
-} => {
-  if (note.isSpecial) {
-    return {
-      text: note.sur || '',
-      type: 'special',
-      display: note.sur || ''
-    };
-  }
-
-  if (note.lyrics) {
-    return {
-      text: note.lyrics,
-      type: 'lyrics',
-      display: note.lyrics
-    };
-  }
-
-  if (note.mixed) {
-    const display = note.mixed.map(part => {
-      if (part.isSpecial) return part.sur;
-      if (part.lyrics) return part.lyrics;
-      if (part.compound) {
-        return part.compound.map(n => renderNoteWithOctave(n)).join('');
-      }
-      return renderNoteWithOctave(part);
-    }).join('');
-
-    return {
-      text: display,
-      type: note.mixed.some(part => part.lyrics) ? 'lyrics' : 'note',
-      display
-    };
-  }
-
-  if (note.compound) {
-    const display = note.compound.map(n => renderNoteWithOctave(n)).join('');
-    return {
-      text: display,
-      type: 'note',
-      display
-    };
-  }
-
-  return {
-    text: renderNoteWithOctave(note),
-    type: 'note',
-    display: renderNoteWithOctave(note)
-  };
-};
-
-const renderNote = (beat: Note | number, beatIndex: number) => {
-  if (typeof beat === 'number') {
-    return <span className="text-gray-500">{beat}</span>;
-  }
-
-  const processed = processNote(beat);
-  return (
-    <span className={
-      processed.type === 'lyrics' ? 'text-blue-600' :
-      processed.type === 'special' ? 'text-gray-400' :
-      'text-black'
-    }>
-      {processed.display}
-    </span>
-  );
-};
 
 // Unicode combining characters for octave markers
 const UPPER_BAR = '\u0305'; // Combining overline
 const LOWER_BAR = '\u0332'; // Combining underline
 
-const renderNoteWithOctave = (note: { sur?: string; octave?: 'upper' | 'middle' | 'lower' }) => {
-  if (!note.sur) return '';
-  if (note.octave === 'upper') return `${note.sur}${UPPER_BAR}`;
-  if (note.octave === 'lower') return `${note.sur}${LOWER_BAR}`;
-  return note.sur;
+const renderNoteWithOctave = (note: Note): string => {
+  if (!note.pitch) return '';
+  const noteStr = note.pitch.toString();
+  if (note.octave === 1) return `${noteStr}${UPPER_BAR}`;
+  if (note.octave === -1) return `${noteStr}${LOWER_BAR}`;
+  return noteStr;
 };
 
-const BeatGrid: React.FC<BeatGridProps> = ({ beats, totalBeats = 16, groupSize = 4 }) => {
-  console.log('BeatGrid received beats:', beats);
-  const groups = [];
+const renderElement = (element: Element): string => {
+  if (!element) return '';
+  
+  // Get lyrics string if present
+  let lyricsStr = '';
+  if (element.lyrics) {
+    lyricsStr = element.lyrics.includes(' ') ? `"${element.lyrics}"` : element.lyrics;
+  }
+  
+  // Get note string if present
+  let noteStr = '';
+  if (element.note) {
+    noteStr = renderNoteWithOctave(element.note);
+  }
+  
+  // Combine if both present
+  if (lyricsStr && noteStr) {
+    return `${lyricsStr}:${noteStr}`;
+  }
+  
+  // Return whichever is present
+  return lyricsStr || noteStr;
+};
+
+const renderBeat = (beat: Beat): string => {
+  if (!beat || !beat.elements) {
+    return '-';
+  }
+  
+  const elementStrings = beat.elements.map(renderElement);
+  
+  // Check if any element has lyrics
+  const hasLyrics = beat.elements.some(e => e.lyrics);
+  
+  if (hasLyrics) {
+    // If has lyrics, add spaces between elements and wrap in brackets
+    return `[${elementStrings.join(' ')}]`;
+  } else {
+    // If only notes, join without spaces
+    return elementStrings.join('');
+  }
+};
+
+const BeatGrid: React.FC<BeatGridProps> = ({ beats = [], totalBeats = 16, groupSize = 4 }) => {
   const beatsToRender = Array.isArray(beats) ? beats : [];
+  const groups = [];
 
   // Fill with empty beats if needed
   while (beatsToRender.length < totalBeats) {
-    beatsToRender.push({ isSpecial: true, sur: '-' });
+    beatsToRender.push({
+      elements: [{ 
+        note: { pitch: NotePitch.SILENCE }
+      }],
+      bracketed: false
+    } as Beat);
   }
 
   // Group beats
@@ -162,18 +139,24 @@ const BeatGrid: React.FC<BeatGridProps> = ({ beats, totalBeats = 16, groupSize =
       {groups.map((group, groupIndex) => (
         <div key={groupIndex} className="border-r border-gray-200 last:border-r-0">
           <div className="grid grid-cols-4">
-            {group.map((beat, beatIndex) => (
-              <div 
-                key={`${groupIndex}-${beatIndex}`} 
-                className="text-center p-1 border-r border-gray-100 last:border-r-0 relative group"
-                title={`Beat ${groupIndex * 4 + beatIndex + 1}`}
-              >
-                {renderNote(beat, beatIndex)}
-                <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                  Beat {groupIndex * 4 + beatIndex + 1}
+            {group.map((beat, beatIndex) => {
+              const renderedBeat = renderBeat(beat);
+              const isLyrics = beat?.elements?.some(e => e?.lyrics) || false;
+              const className = isLyrics ? 'text-blue-600 font-medium' : 'text-black';
+              
+              return (
+                <div 
+                  key={`${groupIndex}-${beatIndex}`} 
+                  className="text-center p-1 border-r border-gray-100 last:border-r-0 relative group"
+                  title={`Beat ${groupIndex * groupSize + beatIndex + 1}`}
+                >
+                  <span className={className}>{renderedBeat}</span>
+                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                    Beat {groupIndex * groupSize + beatIndex + 1}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ))}
@@ -186,7 +169,36 @@ const parseSURFile = (content: string): SurDocument => {
   return parser.parse(content);
 };
 
-const PDFExporter = ({ config, composition }) => {
+// First, let's define some types to help with TypeScript errors
+interface PDFConfig {
+  name: string;
+  tempo?: string;
+  beats_per_row?: string;
+}
+
+interface PDFComposition {
+  title: string;
+  lines: Array<{
+    beats: Array<{
+      lyrics?: string;
+      note?: Note;
+      isSpecial?: boolean;
+      sur?: string;
+      mixed?: Array<{
+        isSpecial?: boolean;
+        lyrics?: string;
+        note?: Note;
+        compound?: Note[];
+      }>;
+      compound?: Note[];
+    }>;
+  }>;
+}
+
+const PDFExporter: React.FC<{
+  config: PDFConfig;
+  composition: PDFComposition[];
+}> = ({ config, composition }) => {
   const generatePDF = () => {
     const container = document.createElement('div');
     container.style.padding = '20px';
@@ -225,7 +237,7 @@ const PDFExporter = ({ config, composition }) => {
             beatSpan.className = 'text-gray-400';
           } else if (beat.lyrics) {
             beatSpan.textContent = beat.lyrics;
-            beatSpan.className = 'text-blue-600';
+            beatSpan.className = 'text-blue-600 font-medium';
           } else if (beat.mixed) {
             beatSpan.textContent = beat.mixed.map(part => {
               if (part.isSpecial) return part.sur;
@@ -302,117 +314,59 @@ const PDFExporter = ({ config, composition }) => {
   );
 };
 
-const SUREditor = ({ content, onChange }) => {
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        onChange(e.target.result);
-      };
-      reader.readAsText(file);
-    }
+const SUREditor: React.FC<{ content: string; onChange: (content: string) => void }> = ({ content, onChange }) => {
+  const [editableContent, setEditableContent] = useState(content);
+  const parser = new SurParser();
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newContent = e.target.value;
+    setEditableContent(newContent);
+    onChange(newContent);
   };
 
+  // Parse the content and get the beats for preview
+  let previewContent = '';
+  try {
+    const surDoc = parser.parse(editableContent);
+    if (surDoc.composition.sections.length > 0) {
+      // Build preview section by section
+      previewContent = surDoc.composition.sections.map(section => {
+        // Add section header
+        const sectionLines = [`#${section.title}`];
+        
+        // Add each line of beats
+        section.beats.forEach(beatLine => {
+          const renderedBeats = beatLine.map(beat => renderBeat(beat)).join(' ');
+          sectionLines.push(`b: ${renderedBeats}`);
+        });
+        
+        return sectionLines.join('\n');
+      }).join('\n\n');
+    }
+  } catch (e) {
+    console.error('Error parsing SUR file:', e);
+    previewContent = 'Error parsing SUR file';
+  }
+
   return (
-    <div className="space-y-4">
-      <div>
-        <input 
-          type="file" 
-          accept=".sur,.txt"
-          onChange={handleFileUpload}
-          className="mb-4"
+    <div className="grid gap-4">
+      <div className="grid gap-2">
+        <label htmlFor="content">Content</label>
+        <textarea
+          id="content"
+          value={editableContent}
+          onChange={handleChange}
+          className="font-mono"
+          rows={20}
         />
       </div>
-      <textarea
-        value={content}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full h-[600px] font-mono text-sm p-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        spellCheck="false"
-      />
+      <div className="grid gap-2">
+        <label>Preview</label>
+        <pre className="p-4 border rounded bg-muted font-mono whitespace-pre-wrap">
+          {previewContent}
+        </pre>
+      </div>
     </div>
-  );
-};
-
-const SURViewer = ({ content, hideControls = false, onTitleClick = undefined }) => {
-  console.log('SURViewer content:', content);
-  const surDocument = parseSURFile(content);
-  console.log('SURViewer parsed document:', surDocument);
-  const beatNumbers = Array.from({ length: 16 }, (_, i) => i + 1);
-
-  return (
-    <Card className="w-full">
-      <CardHeader className="border-b border-gray-200">
-        <div className="flex justify-between items-start">
-          <div 
-            className={onTitleClick ? "cursor-pointer hover:opacity-80" : ""}
-            onClick={onTitleClick}
-          >
-            <CardTitle className="text-2xl font-bold mb-2">
-              {surDocument.metadata.name || 'Untitled'}
-            </CardTitle>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p><span className="font-semibold">Raag:</span> {surDocument.metadata.raag}</p>
-                <p><span className="font-semibold">Taal:</span> {surDocument.metadata.taal}</p>
-              </div>
-              <div>
-                <p><span className="font-semibold">Tempo:</span> {surDocument.metadata.tempo}</p>
-                <p><span className="font-semibold">Beats per Row:</span> {surDocument.metadata.beats_per_row}</p>
-              </div>
-            </div>
-          </div>
-          {!hideControls && (
-            <div className="flex gap-2">
-              <PDFExporter config={surDocument.metadata} composition={surDocument.composition} />
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  const blob = new Blob([content], { type: 'text/plain' });
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `${surDocument.metadata.name || 'composition'}.sur`;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  window.URL.revokeObjectURL(url);
-                }}
-                className="flex items-center gap-2"
-              >
-                <FileText size={16} />
-                Download SUR
-              </Button>
-            </div>
-          )}
-        </div>
-      </CardHeader>
-      
-      <CardContent className="p-6">
-        <div className="space-y-6">
-          {/* Beat numbers row only */}
-          <div className="mb-3 font-mono text-sm">
-            <div className="text-gray-600 mb-0.5">Beat:</div>
-            <BeatGrid beats={beatNumbers} />
-          </div>
-          
-          {/* Composition sections */}
-          {surDocument.composition.sections.map((section, sectionIdx) => {
-            console.log('Rendering section:', section);
-            return (
-              <div key={sectionIdx} className="space-y-1.5">
-                <h3 className="text-lg font-semibold text-blue-600 mb-1">{section.name}</h3>
-                <div className="font-mono text-sm space-y-2">
-                  {section.beats.map((beat, beatIdx) => (
-                    <BeatGrid key={beatIdx} beats={beat.notes} />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
   );
 };
 
@@ -436,21 +390,66 @@ const SUREditorViewer = () => {
           </TabsContent>
           
           <TabsContent value="preview">
-            <SURViewer 
-              content={content} 
-              hideControls={false}
-              onTitleClick={toggleControls}
-            />
+            <Card className="w-full">
+              <CardHeader className="border-b border-gray-200">
+                <div className="flex justify-between items-start">
+                  <div onClick={toggleControls}>
+                    <CardTitle className="text-2xl font-bold mb-2">
+                      Preview
+                    </CardTitle>
+                  </div>
+                </div>
+              </CardHeader>
+              
+              <CardContent className="p-6">
+                <div className="space-y-6">
+                  {/* Beat numbers row */}
+                  <div className="mb-3 font-mono text-sm">
+                    <div className="text-gray-600 mb-0.5">Beat:</div>
+                    <BeatGrid 
+                      beats={Array.from({length: 16}, (_, i) => i + 1)} 
+                      totalBeats={16} 
+                      groupSize={4}
+                    />
+                  </div>
+                  
+                  {/* Composition sections */}
+                  {(() => {
+                    try {
+                      const surDoc = parseSURFile(content);
+                      return surDoc.composition.sections.map((section, sectionIdx) => (
+                        <div key={sectionIdx} className="space-y-1.5">
+                          <h3 className="text-lg font-semibold text-blue-600 mb-1">
+                            {section.title}
+                          </h3>
+                          <div className="font-mono text-sm space-y-2">
+                            {section.beats.map((beatLine, lineIdx) => (
+                              <BeatGrid 
+                                key={`${sectionIdx}-${lineIdx}`}
+                                beats={beatLine} 
+                                totalBeats={16} 
+                                groupSize={4}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ));
+                    } catch (e) {
+                      console.error('Error parsing SUR file:', e);
+                      return <div>Error parsing SUR file</div>;
+                    }
+                  })()}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
 
       <div className={hideControls ? 'mt-0' : 'hidden'}>
-        <SURViewer 
-          content={content} 
-          hideControls={true}
-          onTitleClick={toggleControls}
-        />
+        <Card className="w-full">
+          {/* ... rest of the viewer component ... */}
+        </Card>
       </div>
     </div>
   );

@@ -12,8 +12,8 @@ class TokenType(Enum):
     SEPARATOR = auto()
 
 class Token:
-    def __init__(self, type: TokenType, value: str):
-        self.type = type
+    def __init__(self, tok_type: TokenType, value: str):
+        self.type = tok_type
         self.value = value
     
     def __str__(self):
