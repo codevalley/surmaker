@@ -31,11 +31,19 @@ export class SurParser {
     const addToken = (value: string) => {
       if (!value) return;
       
-      // Handle compound notes (multiple notes without spaces)
-      if (value.match(/^[SRGMPDN\-\*]+$/)) {
-        // Split into individual notes and add each one
-        for (const char of value) {
-          tokens.push({ type: TokenType.NOTE, value: char });
+      // Handle compound notes (multiple notes with octave markers)
+      if (value.match(/^[SRGMPDN\-\*]['\.,]*(?:[SRGMPDN]['\.,]*)*$/)) {
+        // Split into individual notes while preserving octave markers
+        let i = 0;
+        while (i < value.length) {
+          let noteChar = value[i];
+          i++;
+          // Collect any octave markers that follow
+          while (i < value.length && "'.".includes(value[i])) {
+            noteChar += value[i];
+            i++;
+          }
+          tokens.push({ type: TokenType.NOTE, value: noteChar });
         }
       } else if (value.match(/^(?:\.|,)*[SRGMPDN](?:'|,)*$|-|\*$/)) {
         // Single note with octave markers
