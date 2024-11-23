@@ -11,7 +11,8 @@ import {
   ParsingElement,
   ElementType,
   NotePitch,
-  NoteVariant
+  NoteVariant,
+  tokenizeBeatContent
 } from './types';
 
 export class SurParser {
@@ -24,83 +25,87 @@ export class SurParser {
 
   private tokenize(text: string): Token[] {
     const tokens: Token[] = [];
-    let i = 0;
-    
-    while (i < text.length) {
+    let current = '';
+    let inQuotes = false;
+
+    const addToken = (value: string) => {
+      if (!value) return;
+      
+      // Handle compound notes (multiple notes without spaces)
+      if (value.match(/^[SRGMPDN\-\*]+$/)) {
+        // Split into individual notes and add each one
+        for (const char of value) {
+          tokens.push({ type: TokenType.NOTE, value: char });
+        }
+      } else if (value.match(/^(?:\.|,)*[SRGMPDN](?:'|,)*$|-|\*$/)) {
+        // Single note with octave markers
+        tokens.push({ type: TokenType.NOTE, value });
+      } else {
+        tokens.push({ type: TokenType.LYRICS, value });
+      }
+    };
+
+    // Process character by character
+    for (let i = 0; i < text.length; i++) {
       const char = text[i];
-      
-      // Skip whitespace outside of quotes
-      if (char === ' ' || char === '\t') {
-        i++;
-        continue;
-      }
-      
-      // Handle quoted lyrics
+
+      // Handle quotes
       if (char === '"') {
-        let lyrics = '';
-        i++; // Skip opening quote
-        while (i < text.length && text[i] !== '"') {
-          lyrics += text[i];
-          i++;
-        }
-        i++; // Skip closing quote
-        tokens.push({ type: TokenType.LYRICS, value: lyrics });
-        continue;
-      }
-      
-      // Handle notes with octave markers
-      if (char === '.' || char === '\'' || this.isNote(char)) {
-        let note = '';
-        if (char === '.') {
-          note = char;
-          i++;
-        }
-        if (i < text.length && this.isNote(text[i])) {
-          note += text[i];
-          i++;
-        }
-        if (i < text.length && text[i] === '\'') {
-          note += text[i];
-          i++;
-        }
-        if (note) {
-          tokens.push({ type: TokenType.NOTE, value: note });
+        if (inQuotes) {
+          // End quote - add accumulated lyrics
+          tokens.push({ type: TokenType.LYRICS, value: current });
+          current = '';
+          inQuotes = false;
+        } else {
+          // Start quote - add any pending token
+          if (current) addToken(current);
+          current = '';
+          inQuotes = true;
         }
         continue;
       }
-      
-      // Handle unquoted lyrics (single words without spaces)
-      if (/[a-z]/i.test(char)) {
-        let lyrics = '';
-        while (i < text.length && /[a-z]/i.test(text[i])) {
-          lyrics += text[i];
-          i++;
+
+      // Handle special characters when not in quotes
+      if (!inQuotes) {
+        if (char === ' ') {
+          // Add pending token and separator
+          if (current) addToken(current);
+          if (tokens.length > 0 && tokens[tokens.length - 1].type !== TokenType.SEPARATOR) {
+            tokens.push({ type: TokenType.SEPARATOR, value: ' ' });
+          }
+          current = '';
+          continue;
         }
-        tokens.push({ type: TokenType.LYRICS, value: lyrics });
-        continue;
-      }
-      
-      // Handle special characters
-      switch (char) {
-        case ':':
-          tokens.push({ type: TokenType.COLON, value: ':' });
-          break;
-        case '[':
+
+        if (char === '[') {
+          if (current) addToken(current);
           tokens.push({ type: TokenType.OPEN_BRACKET, value: '[' });
-          break;
-        case ']':
+          current = '';
+          continue;
+        }
+
+        if (char === ']') {
+          if (current) addToken(current);
           tokens.push({ type: TokenType.CLOSE_BRACKET, value: ']' });
-          break;
-        case '-':
-          tokens.push({ type: TokenType.NOTE, value: '-' });
-          break;
-        case '*':
-          tokens.push({ type: TokenType.NOTE, value: '*' });
-          break;
+          current = '';
+          continue;
+        }
+
+        if (char === ':') {
+          if (current) addToken(current);
+          tokens.push({ type: TokenType.COLON, value: ':' });
+          current = '';
+          continue;
+        }
       }
-      i++;
+
+      // Accumulate character
+      current += char;
     }
-    
+
+    // Handle any remaining content
+    if (current) addToken(current);
+
     return tokens;
   }
 
@@ -165,8 +170,6 @@ export class SurParser {
     const elements: ParsingElement[] = [];
     let i = 0;
 
-    console.log('Converting tokens to elements:', tokens.map(t => `${t.type}(${t.value})`));
-
     while (i < tokens.length) {
       const token = tokens[i];
 
@@ -187,28 +190,23 @@ export class SurParser {
           break;
 
         case TokenType.NOTE:
-          const note = this.parseNote(token.value);
-          if (note) {
-            elements.push({
-              type: ElementType.NORMAL,
-              note
-            });
-          }
+          elements.push({
+            type: ElementType.NORMAL,
+            note: this.parseNote(token.value)
+          });
           i++;
           break;
 
         case TokenType.LYRICS:
+          // Check for lyrics:note pattern
           if (i + 2 < tokens.length && 
               tokens[i + 1].type === TokenType.COLON && 
               tokens[i + 2].type === TokenType.NOTE) {
-            const note = this.parseNote(tokens[i + 2].value);
-            if (note) {
-              elements.push({
-                type: ElementType.NORMAL,
-                lyrics: token.value,
-                note
-              });
-            }
+            elements.push({
+              type: ElementType.NORMAL,
+              lyrics: token.value,
+              note: this.parseNote(tokens[i + 2].value)
+            });
             i += 3;
           } else {
             elements.push({
@@ -225,10 +223,6 @@ export class SurParser {
       }
     }
 
-    console.log('Elements:', elements.map(e => 
-      `${e.type}(${e.lyrics || ''} ${e.note ? JSON.stringify(e.note) : ''})`
-    ));
-
     return elements;
   }
 
@@ -238,54 +232,54 @@ export class SurParser {
     let bracketElements: ParsingElement[] = [];
     let inBracket = false;
 
-    const createBeat = (elems: ParsingElement[]) => {
+    const createBeat = (elems: ParsingElement[], bracketed: boolean) => {
       if (elems.length > 0) {
-        // Only include the lyrics and note properties in the final elements
-        const cleanElements = elems.map(({ lyrics, note }) => ({
-          ...(lyrics && { lyrics }),
-          ...(note && { note })
-        }));
-        beats.push({ elements: cleanElements });
+        beats.push({
+          elements: elems.filter(e => e.type === ElementType.NORMAL),
+          bracketed
+        });
       }
     };
 
     for (const element of elements) {
-      if (element.type === ElementType.SEPARATOR) {
-        if (!inBracket && currentElements.length > 0) {
-          createBeat(currentElements);
-          currentElements = [];
-        }
-      } else if (element.type === ElementType.OPEN_BRACKET) {
-        if (currentElements.length > 0) {
-          createBeat(currentElements);
-          currentElements = [];
-        }
-        inBracket = true;
-        bracketElements = [];
-      } else if (element.type === ElementType.CLOSE_BRACKET) {
-        inBracket = false;
-        if (bracketElements.length > 0) {
-          createBeat(bracketElements);
-          bracketElements = [];
-        }
-      } else if (element.type === ElementType.NORMAL) {
-        if (inBracket) {
-          bracketElements.push(element);
-        } else {
-          currentElements.push(element);
-        }
+      switch (element.type) {
+        case ElementType.SEPARATOR:
+          if (!inBracket && currentElements.length > 0) {
+            createBeat(currentElements, false);
+            currentElements = [];
+          }
+          break;
+
+        case ElementType.OPEN_BRACKET:
+          if (currentElements.length > 0) {
+            createBeat(currentElements, false);
+            currentElements = [];
+          }
+          inBracket = true;
+          break;
+
+        case ElementType.CLOSE_BRACKET:
+          if (bracketElements.length > 0) {
+            createBeat(bracketElements, true);
+            bracketElements = [];
+          }
+          inBracket = false;
+          break;
+
+        case ElementType.NORMAL:
+          if (inBracket) {
+            bracketElements.push(element);
+          } else {
+            currentElements.push(element);
+          }
+          break;
       }
     }
 
+    // Handle any remaining elements
     if (currentElements.length > 0) {
-      createBeat(currentElements);
+      createBeat(currentElements, false);
     }
-
-    console.log('Beats:', beats.map(b => 
-      `Beat(${b.elements.map(e => 
-        e.lyrics ? e.lyrics : e.note ? JSON.stringify(e.note) : 'unknown'
-      ).join(', ')})`
-    ));
 
     return beats;
   }

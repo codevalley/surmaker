@@ -3,8 +3,10 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Download, FileText } from 'lucide-react';
-import { SurParser, SurDocument, Note, Beat, Element, ElementType, NotePitch } from './lib/sur-parser';
+import { SurParser, Note, Beat, Element, ElementType, NotePitch } from './lib/sur-parser';
+import type { SurDocument, Section } from './lib/sur-parser/types';
 import html2pdf from 'html2pdf.js';
+import { SurFormatter } from './lib/sur-parser/formatter';
 
 const DEFAULT_SUR = `%% CONFIG
 name: "Albela Sajan"
@@ -92,31 +94,33 @@ const renderElement = (element: Element): string => {
   }
   
   // Return whichever is present
-  return lyricsStr || noteStr;
+  return lyricsStr || noteStr || '-';
 };
 
-const renderBeat = (beat: Beat): string => {
-  if (!beat || !beat.elements) {
+const renderBeat = (beat: Beat | number): string => {
+  if (typeof beat === 'number') {
+    return beat.toString();
+  }
+  
+  if (!beat || !beat.elements || beat.elements.length === 0) {
     return '-';
   }
   
   const elementStrings = beat.elements.map(renderElement);
   
-  // Check if any element has lyrics
-  const hasLyrics = beat.elements.some(e => e.lyrics);
-  
-  if (hasLyrics) {
-    // If has lyrics, add spaces between elements and wrap in brackets
+  // Always wrap in brackets if it's marked as bracketed
+  if (beat.bracketed) {
     return `[${elementStrings.join(' ')}]`;
-  } else {
-    // If only notes, join without spaces
-    return elementStrings.join('');
   }
+  
+  // Join without spaces for pure notes
+  return elementStrings.join('');
 };
 
+// Update the BeatGrid component to handle the new structure
 const BeatGrid: React.FC<BeatGridProps> = ({ beats = [], totalBeats = 16, groupSize = 4 }) => {
-  const beatsToRender = Array.isArray(beats) ? beats : [];
-  const groups = [];
+  // Ensure beats is always an array
+  const beatsToRender = [...beats];
 
   // Fill with empty beats if needed
   while (beatsToRender.length < totalBeats) {
@@ -129,6 +133,7 @@ const BeatGrid: React.FC<BeatGridProps> = ({ beats = [], totalBeats = 16, groupS
   }
 
   // Group beats
+  const groups = [];
   for (let i = 0; i < totalBeats; i += groupSize) {
     const group = beatsToRender.slice(i, i + groupSize);
     groups.push(group);
@@ -141,7 +146,8 @@ const BeatGrid: React.FC<BeatGridProps> = ({ beats = [], totalBeats = 16, groupS
           <div className="grid grid-cols-4">
             {group.map((beat, beatIndex) => {
               const renderedBeat = renderBeat(beat);
-              const isLyrics = beat?.elements?.some(e => e?.lyrics) || false;
+              const isLyrics = typeof beat !== 'number' && 
+                             beat?.elements?.some(e => e?.lyrics) || false;
               const className = isLyrics ? 'text-blue-600 font-medium' : 'text-black';
               
               return (
@@ -314,6 +320,16 @@ const PDFExporter: React.FC<{
   );
 };
 
+// Add this helper function at the top level
+const groupBeatsIntoLines = (beats: Beat[], beatsPerLine: number = 16): Beat[][] => {
+  const lines: Beat[][] = [];
+  for (let i = 0; i < beats.length; i += beatsPerLine) {
+    lines.push(beats.slice(i, i + beatsPerLine));
+  }
+  return lines;
+};
+
+// Update the SUREditor component
 const SUREditor: React.FC<{ content: string; onChange: (content: string) => void }> = ({ content, onChange }) => {
   const [editableContent, setEditableContent] = useState(content);
   const parser = new SurParser();
@@ -328,16 +344,19 @@ const SUREditor: React.FC<{ content: string; onChange: (content: string) => void
   let previewContent = '';
   try {
     const surDoc = parser.parse(editableContent);
+    const formatter = new SurFormatter();
+    
     if (surDoc.composition.sections.length > 0) {
-      // Build preview section by section
       previewContent = surDoc.composition.sections.map(section => {
-        // Add section header
         const sectionLines = [`#${section.title}`];
         
-        // Add each line of beats
-        section.beats.forEach(beatLine => {
-          const renderedBeats = beatLine.map(beat => renderBeat(beat)).join(' ');
-          sectionLines.push(`b: ${renderedBeats}`);
+        // Group beats into lines
+        const beatLines = groupBeatsIntoLines(section.beats);
+        
+        beatLines.forEach((beatLine) => {
+          // Use the formatter to format the line
+          const renderedLine = formatter.formatLine(beatLine);
+          sectionLines.push(`b: ${renderedLine}`);
         });
         
         return sectionLines.join('\n');
@@ -417,23 +436,37 @@ const SUREditorViewer = () => {
                   {(() => {
                     try {
                       const surDoc = parseSURFile(content);
-                      return surDoc.composition.sections.map((section, sectionIdx) => (
-                        <div key={sectionIdx} className="space-y-1.5">
-                          <h3 className="text-lg font-semibold text-blue-600 mb-1">
-                            {section.title}
-                          </h3>
-                          <div className="font-mono text-sm space-y-2">
-                            {section.beats.map((beatLine, lineIdx) => (
-                              <BeatGrid 
-                                key={`${sectionIdx}-${lineIdx}`}
-                                beats={beatLine} 
-                                totalBeats={16} 
-                                groupSize={4}
-                              />
-                            ))}
+                      console.log('Rendering document:', surDoc);
+                      
+                      return surDoc.composition.sections.map((section, sectionIdx) => {
+                        console.log('Rendering section:', section.title, 'beats:', section.beats);
+                        
+                        if (!Array.isArray(section.beats)) {
+                          console.error('Section beats is not an array:', section.beats);
+                          return null;
+                        }
+
+                        // Group beats into lines
+                        const beatLines = groupBeatsIntoLines(section.beats);
+
+                        return (
+                          <div key={sectionIdx} className="space-y-1.5">
+                            <h3 className="text-lg font-semibold text-blue-600 mb-1">
+                              {section.title}
+                            </h3>
+                            <div className="font-mono text-sm space-y-2">
+                              {beatLines.map((beatLine, lineIdx) => (
+                                <BeatGrid 
+                                  key={`${sectionIdx}-${lineIdx}`}
+                                  beats={beatLine} 
+                                  totalBeats={16} 
+                                  groupSize={4}
+                                />
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ));
+                        );
+                      });
                     } catch (e) {
                       console.error('Error parsing SUR file:', e);
                       return <div>Error parsing SUR file</div>;
