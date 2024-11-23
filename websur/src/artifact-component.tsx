@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Download, FileText } from 'lucide-react';
+import { Download, FileText, Book } from 'lucide-react';
 import { SurParser, Note, Beat, Element, ElementType, NotePitch } from './lib/sur-parser';
 import type { SurDocument, Section } from './lib/sur-parser/types';
 import html2pdf from 'html2pdf.js';
@@ -441,84 +441,139 @@ const SUREditorViewer = () => {
   
   return (
     <div className="max-w-6xl mx-auto p-4">
-      <div className={hideControls ? 'hidden' : ''}>
-        <Tabs defaultValue="edit" className="w-full">
-          <TabsList className="mb-4">
-            <TabsTrigger value="edit">Edit</TabsTrigger>
-            <TabsTrigger value="preview">Preview</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="edit">
-            <SUREditor content={content} onChange={setContent} />
-          </TabsContent>
-          
-          <TabsContent value="preview">
-            <Card className="w-full">
-              <CardHeader className="border-b border-gray-200 pb-6">
-                {/* First Row: Title and Download Button */}
-                <div className="flex justify-between items-center mb-4">
-                  <CardTitle className="text-3xl font-bold">
-                    {(() => {
-                      try {
-                        const surDoc = parseSURFile(content);
-                        return surDoc.metadata.name || 'Untitled Composition';
-                      } catch (e) {
-                        return 'Preview';
-                      }
-                    })()}
-                  </CardTitle>
-                  {(() => {
-                    try {
-                      const surDoc = parseSURFile(content);
-                      return (
-                        <PDFExporter 
-                          config={{
-                            name: surDoc.metadata.name || 'Untitled',
-                            tempo: surDoc.metadata.tempo,
-                            beats_per_row: surDoc.metadata.beats_per_row
-                          }}
-                          composition={surDoc.composition.sections.map(section => ({
-                            title: section.title,
-                            lines: groupBeatsIntoLines(section.beats).map(line => ({
-                              beats: line
-                            }))
-                          }))}
-                        />
-                      );
-                    } catch (e) {
-                      return null;
-                    }
-                  })()}
+      <Tabs defaultValue="edit" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="edit">Edit</TabsTrigger>
+          <TabsTrigger value="preview">Preview</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="edit">
+          <SUREditor content={content} onChange={setContent} />
+        </TabsContent>
+        
+        <TabsContent value="preview">
+          <Card className="w-full">
+            <CardHeader className="border-b border-gray-200 pb-4">
+              {/* Normal View */}
+              <div className={hideControls ? 'hidden' : ''}>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center mb-4">
+                      <CardTitle className="text-3xl font-bold">
+                        {(() => {
+                          try {
+                            const surDoc = parseSURFile(content);
+                            return surDoc.metadata.name || 'Untitled Composition';
+                          } catch (e) {
+                            return 'Preview';
+                          }
+                        })()}
+                      </CardTitle>
+                      <div className="flex gap-2">
+                        {/* PDF Export Button */}
+                        {(() => {
+                          try {
+                            const surDoc = parseSURFile(content);
+                            return (
+                              <PDFExporter 
+                                config={{
+                                  name: surDoc.metadata.name || 'Untitled',
+                                  tempo: surDoc.metadata.tempo,
+                                  beats_per_row: surDoc.metadata.beats_per_row
+                                }}
+                                composition={surDoc.composition.sections.map(section => ({
+                                  title: section.title,
+                                  lines: groupBeatsIntoLines(section.beats).map(line => ({
+                                    beats: line
+                                  }))
+                                }))}
+                              />
+                            );
+                          } catch (e) {
+                            return null;
+                          }
+                        })()}
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={toggleControls}
+                          className="hover:bg-gray-100"
+                        >
+                          <Book className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <dl className="grid grid-cols-3 gap-6">
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500 mb-1">Raag</dt>
+                          <dd className="text-base font-semibold text-gray-900">
+                            {(() => {
+                              try {
+                                const surDoc = parseSURFile(content);
+                                return surDoc.metadata.raag || 'Not specified';
+                              } catch (e) {
+                                return 'Not specified';
+                              }
+                            })()}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500 mb-1">Taal</dt>
+                          <dd className="text-base font-semibold text-gray-900">
+                            {(() => {
+                              try {
+                                const surDoc = parseSURFile(content);
+                                return surDoc.metadata.taal || 'Not specified';
+                              } catch (e) {
+                                return 'Not specified';
+                              }
+                            })()}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500 mb-1">Tempo</dt>
+                          <dd className="text-base font-semibold text-gray-900">
+                            {(() => {
+                              try {
+                                const surDoc = parseSURFile(content);
+                                return surDoc.metadata.tempo || 'Not specified';
+                              } catch (e) {
+                                return 'Not specified';
+                              }
+                            })()}
+                          </dd>
+                        </div>
+                      </dl>
+                    </div>
+                  </div>
                 </div>
+              </div>
 
-                {/* Second Row: Metadata */}
-                <div className="cursor-pointer" onClick={toggleControls}>
-                  <div className={`metadata-section ${hideControls ? 'hidden' : ''}`}>
+              {/* Reading Mode View */}
+              <div className={hideControls ? '' : 'hidden'}>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-8">
+                    <h1 className="text-2xl font-bold">
+                      {(() => {
+                        try {
+                          const surDoc = parseSURFile(content);
+                          return surDoc.metadata.name;
+                        } catch (e) {
+                          return 'Preview';
+                        }
+                      })()}
+                    </h1>
                     {(() => {
                       try {
                         const surDoc = parseSURFile(content);
                         return (
-                          <div className="bg-gray-50 rounded-lg p-4">
-                            <dl className="grid grid-cols-3 gap-6">
-                              <div>
-                                <dt className="text-sm font-medium text-gray-500 mb-1">Raag</dt>
-                                <dd className="text-base font-semibold text-gray-900">
-                                  {surDoc.metadata.raag || 'Not specified'}
-                                </dd>
-                              </div>
-                              <div>
-                                <dt className="text-sm font-medium text-gray-500 mb-1">Taal</dt>
-                                <dd className="text-base font-semibold text-gray-900">
-                                  {surDoc.metadata.taal || 'Not specified'}
-                                </dd>
-                              </div>
-                              <div>
-                                <dt className="text-sm font-medium text-gray-500 mb-1">Tempo</dt>
-                                <dd className="text-base font-semibold text-gray-900">
-                                  {surDoc.metadata.tempo || 'Not specified'}
-                                </dd>
-                              </div>
-                            </dl>
+                          <div className="flex items-center gap-4 text-base">
+                            <span className="font-semibold text-gray-900">{surDoc.metadata.raag}</span>
+                            <span className="text-gray-400">•</span>
+                            <span className="font-semibold text-gray-900">{surDoc.metadata.taal}</span>
+                            <span className="text-gray-400">•</span>
+                            <span className="font-semibold text-gray-900">{surDoc.metadata.tempo}</span>
                           </div>
                         );
                       } catch (e) {
@@ -526,105 +581,120 @@ const SUREditorViewer = () => {
                       }
                     })()}
                   </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={toggleControls}
+                    className="bg-gray-100"
+                  >
+                    <Book className="h-4 w-4" />
+                  </Button>
                 </div>
-              </CardHeader>
+              </div>
+            </CardHeader>
 
-              <CardContent className="p-6">
-                <div className="space-y-6">
-                  {/* Beat numbers row */}
-                  <div className="mb-3 font-mono text-sm">
-                    <div className="text-gray-600 mb-0.5">Beat:</div>
-                    <div className="grid grid-cols-4 gap-0 border border-gray-200 rounded-lg">
-                      {[0, 1, 2, 3].map((group) => (
-                        <div key={group} className="border-r border-gray-200 last:border-r-0">
-                          <div className="grid grid-cols-4">
-                            {[1, 2, 3, 4].map((num) => {
-                              const beatNum = group * 4 + num;
-                              return (
-                                <div
-                                  key={beatNum}
-                                  className="text-center p-2 border-r border-gray-100 last:border-r-0"
-                                  title={`Beat ${beatNum}`}
-                                >
-                                  {beatNum}
-                                </div>
-                              );
-                            })}
+            <CardContent className="p-6">
+              <div className="space-y-6">
+                {/* Beat numbers row */}
+                <div className="mb-3 font-mono text-sm">
+                  <div className="text-gray-600 mb-0.5">Beat:</div>
+                  <div className={`grid grid-cols-4 gap-0 border border-gray-200 rounded-lg ${
+                    hideControls ? 'border-transparent' : ''
+                  }`}>
+                    {[0, 1, 2, 3].map((group) => (
+                      <div key={group} className={`border-r border-gray-200 ${
+                        hideControls ? 'border-transparent' : ''
+                      } last:border-r-0`}>
+                        <div className="grid grid-cols-4">
+                          {[1, 2, 3, 4].map((num) => {
+                            const beatNum = group * 4 + num;
+                            return (
+                              <div
+                                key={beatNum}
+                                className={`text-center ${hideControls ? 'py-0.5' : 'p-2'} ${
+                                  beatNum % 4 === 0 ? 'border-r border-gray-300' : 
+                                  hideControls ? 'border-transparent' : 'border-r border-gray-100'
+                                } last:border-r-0`}
+                              >
+                                {beatNum}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Composition sections */}
+                {(() => {
+                  try {
+                    const surDoc = parseSURFile(content);
+                    const formatter = new SurFormatter();
+                    
+                    return surDoc.composition.sections.map((section, sectionIdx) => {
+                      const beatLines = groupBeatsIntoLines(section.beats);
+
+                      return (
+                        <div key={sectionIdx} className="space-y-1.5">
+                          <h3 className={`font-semibold text-blue-600 text-center ${
+                            hideControls ? 'text-sm' : 'text-lg mb-2'
+                          }`}>
+                            {section.title}
+                          </h3>
+                          <div className="font-mono text-sm space-y-2">
+                            {beatLines.map((beatLine, lineIdx) => (
+                              <div key={`${sectionIdx}-${lineIdx}`} 
+                                   className={`grid grid-cols-4 gap-0 ${
+                                     hideControls ? '' : 'border border-gray-200 rounded-lg'
+                                   }`}>
+                                {[0, 1, 2, 3].map((group) => (
+                                  <div key={group} className={`border-r border-gray-200 ${
+                                    hideControls ? 'border-transparent' : ''
+                                  } last:border-r-0`}>
+                                    <div className="grid grid-cols-4">
+                                      {[0, 1, 2, 3].map((num) => {
+                                        const beatIndex = group * 4 + num;
+                                        const beat = beatLine[beatIndex] || {
+                                          elements: [{ note: { pitch: NotePitch.SILENCE } }],
+                                          bracketed: false
+                                        };
+                                        return (
+                                          <div
+                                            key={beatIndex}
+                                            className={`text-center ${hideControls ? 'py-0.5' : 'p-2'} ${
+                                              (beatIndex + 1) % 4 === 0 ? 'border-r border-gray-300' : 
+                                              hideControls ? 'border-transparent' : 'border-r border-gray-100'
+                                            } last:border-r-0 relative group ${
+                                              beat.elements.some(e => e.lyrics) ? 'text-blue-600' : ''
+                                            }`}
+                                          >
+                                            {formatter.formatBeat(beat)}
+                                            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                                              Beat {lineIdx * 16 + beatIndex + 1}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Composition sections */}
-                  {(() => {
-                    try {
-                      const surDoc = parseSURFile(content);
-                      const formatter = new SurFormatter();
-                      
-                      return surDoc.composition.sections.map((section, sectionIdx) => {
-                        // Group beats into lines
-                        const beatLines = groupBeatsIntoLines(section.beats);
-
-                        return (
-                          <div key={sectionIdx} className="space-y-1.5">
-                            <h3 className="text-lg font-semibold text-blue-600 mb-2">
-                              {section.title}
-                            </h3>
-                            <div className="font-mono text-sm space-y-2">
-                              {beatLines.map((beatLine, lineIdx) => (
-                                <div key={`${sectionIdx}-${lineIdx}`} 
-                                     className="grid grid-cols-4 gap-0 border border-gray-200 rounded-lg">
-                                  {[0, 1, 2, 3].map((group) => (
-                                    <div key={group} className="border-r border-gray-200 last:border-r-0">
-                                      <div className="grid grid-cols-4">
-                                        {[0, 1, 2, 3].map((num) => {
-                                          const beatIndex = group * 4 + num;
-                                          const beat = beatLine[beatIndex] || {
-                                            elements: [{ note: { pitch: NotePitch.SILENCE } }],
-                                            bracketed: false
-                                          };
-                                          return (
-                                            <div
-                                              key={beatIndex}
-                                              className={`text-center p-2 border-r border-gray-100 last:border-r-0 relative group ${
-                                                beat.elements.some(e => e.lyrics) ? 'text-blue-600' : ''
-                                              }`}
-                                            >
-                                              {formatter.formatBeat(beat)}
-                                              {/* Tooltip */}
-                                              <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                                                Beat {lineIdx * 16 + beatIndex + 1}
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      });
-                    } catch (e) {
-                      console.error('Error parsing SUR file:', e);
-                      return <div>Error parsing SUR file</div>;
-                    }
-                  })()}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
-
-      <div className={hideControls ? 'mt-0' : 'hidden'}>
-        <Card className="w-full">
-          {/* ... rest of the viewer component ... */}
-        </Card>
-      </div>
+                      );
+                    });
+                  } catch (e) {
+                    console.error('Error parsing SUR file:', e);
+                    return <div>Error parsing SUR file</div>;
+                  }
+                })()}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
