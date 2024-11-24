@@ -2,7 +2,7 @@ import React, { useState, useMemo, memo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Download, FileText, Book, Eye, ArrowRightLeft, ArrowUpDown, Copy, Check } from 'lucide-react';
+import { Download, FileText, Book, Eye, EyeOff, ArrowRightLeft, ArrowUpDown, Copy, Check } from 'lucide-react';
 import { SurParser, Note, Beat, Element, ElementType, NotePitch } from './lib/sur-parser';
 import type { SurDocument, Section } from './lib/sur-parser/types';
 import html2pdf from 'html2pdf.js';
@@ -170,7 +170,7 @@ const generateBeatNumbers = (maxBeatWidth: number): string => {
 // Update the preview content generation in SUREditor
 const SUREditor: React.FC<{ content: string; onChange: (content: string) => void }> = ({ content, onChange }) => {
   const [editableContent, setEditableContent] = useState(content);
-  const [showPreview, setShowPreview] = useState(false);
+  const [showPreview, setShowPreview] = useState(true);
   const [isVerticalLayout, setIsVerticalLayout] = useState(false);
   const [copied, setCopied] = useState(false);
   
@@ -261,7 +261,7 @@ const SUREditor: React.FC<{ content: string; onChange: (content: string) => void
 
   return (
     <div className="h-full flex flex-col gap-4">
-      {/* Top toolbar - remove preview controls from here */}
+      {/* Top toolbar */}
       <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-200">
         <div className="flex items-center gap-4">
           <label className="cursor-pointer">
@@ -278,11 +278,19 @@ const SUREditor: React.FC<{ content: string; onChange: (content: string) => void
           </label>
           
           <Button
-            variant="ghost"
+            variant={showPreview ? "default" : "ghost"}
             onClick={() => setShowPreview(!showPreview)}
-            className={`gap-2 ${showPreview ? 'bg-white shadow-sm' : ''}`}
+            className={`gap-2 ${
+              showPreview 
+                ? 'bg-black hover:bg-black/90 text-white' 
+                : 'hover:bg-gray-100'
+            }`}
           >
-            <Eye className="h-4 w-4" />
+            {showPreview ? (
+              <Eye className="h-4 w-4" />
+            ) : (
+              <EyeOff className="h-4 w-4" />
+            )}
             Preview
           </Button>
         </div>
@@ -309,7 +317,7 @@ const SUREditor: React.FC<{ content: string; onChange: (content: string) => void
         {showPreview && (
           <div className={`flex-1 relative ${isVerticalLayout ? 'h-1/2' : 'w-1/2'}`}>
             {/* Preview content with controls in top-right corner */}
-            <div className="h-full min-h-[300px] p-3 font-mono text-xs 
+            <div className="h-full min-h-[300px] p-3 font-mono text-sm 
                           bg-gray-50 border border-gray-200 rounded-lg 
                           shadow-sm overflow-auto relative">
               {/* Floating controls in top-right corner */}
@@ -353,8 +361,8 @@ const SUREditor: React.FC<{ content: string; onChange: (content: string) => void
                 </Button>
               </div>
 
-              {/* Preview content */}
-              <pre className="whitespace-pre-wrap text-gray-700 pt-10">
+              {/* Preview content - keep original font size */}
+              <pre className="whitespace-pre-wrap text-gray-700 pt-10 text-sm">
                 {previewContent}
               </pre>
             </div>
