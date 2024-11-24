@@ -78,7 +78,17 @@ export class SurFormatter {
     return elements.some(e => e.lyrics);
   }
 
+  // Add memoization for commonly formatted beats
+  private beatCache = new Map<string, string>();
+  
   public formatBeat(beat: Beat): string {
+    // Create a cache key from the beat
+    const cacheKey = JSON.stringify(beat);
+    
+    // Check cache first
+    const cached = this.beatCache.get(cacheKey);
+    if (cached) return cached;
+    
     if (!beat || !beat.elements || beat.elements.length === 0) {
       return '-';
     }
@@ -92,15 +102,21 @@ export class SurFormatter {
         const lyricsElement = formattedElements.find(e => e.includes(':') || !e.match(/^[SRGMPDN\-\*'.-]*$/));
         const noteElements = formattedElements.filter(e => !e.includes(':') && e.match(/^[SRGMPDN\-\*'.-]*$/));
         const notes = noteElements.join('');
-        return `[${lyricsElement} ${notes}]`;
+        const result = `[${lyricsElement} ${notes}]`;
+        this.beatCache.set(cacheKey, result);
+        return result;
       }
       
       // For other cases that need brackets
-      return `[${formattedElements.join(' ')}]`;
+      const result = `[${formattedElements.join(' ')}]`;
+      this.beatCache.set(cacheKey, result);
+      return result;
     }
     
     // For notes without lyrics, always join without spaces
-    return formattedElements.join('');
+    const result = formattedElements.join('');
+    this.beatCache.set(cacheKey, result);
+    return result;
   }
 
   public formatLine(beats: Beat[]): string {
