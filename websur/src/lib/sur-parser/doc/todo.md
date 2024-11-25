@@ -110,3 +110,47 @@ Prepare the library for distribution as an npm package.
   - [ ] Configure automated testing
   - [ ] Setup automated publishing
   - [ ] Add version management
+
+## Epic 7: File Management UI
+Implement UI components for saving and managing SUR files.
+
+### Tasks
+- [ ] Add Save Functionality UI
+  - [ ] Create SaveDialog component
+  - [ ] Add save button in toolbar
+  - [ ] Implement file naming interface
+  - [ ] Add success/error notifications
+
+- [ ] Create Recent Files Panel
+  - [ ] Design recent files list component
+  - [ ] Add file metadata display
+  - [ ] Implement file actions (open, delete)
+  - [ ] Add empty state handling
+
+- [ ] Implement Local Storage Management
+  - [ ] Create storage service for file hashes
+  - [ ] Implement recent files tracking
+  - [ ] Add file metadata caching
+  - [ ] Handle storage limits
+
+## Epic 8: File Sharing and URLs
+Implement URL-based file sharing and retrieval system.
+
+### Tasks
+- [ ] URL-based File Access
+  - [ ] Implement URL hash parsing
+  - [ ] Add file loading from URL
+  - [ ] Handle loading states
+  - [ ] Implement error handling for invalid URLs
+
+- [ ] File Sharing Features
+  - [ ] Add share button functionality
+  - [ ] Implement URL generation
+  - [ ] Add copy-to-clipboard feature
+  - [ ] Create share success notification
+
+- [ ] Integration with Backend
+  - [ ] Implement save API integration
+  - [ ] Add file retrieval functionality
+  - [ ] Handle API errors gracefully
+  - [ ] Add loading states for API calls
