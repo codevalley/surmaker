@@ -12,12 +12,13 @@ import {
   ElementType,
   NotePitch,
   NoteVariant,
-  tokenizeBeatContent
+  tokenizeBeatContent,
+  Octave
 } from './types';
 
 export class SurParser {
   // Regex patterns for tokenization
-  private readonly notePattern = String.raw`(?:\.|,)*[SRGMPDN](?:'|,)*(?:[SRGMPDN](?:'|,)*)*`;  // Updated pattern
+  private readonly notePattern = String.raw`[SRGMPDN]['.]*`;  // Note followed by optional octave marker
   private readonly quotedLyrics = String.raw`"[^"]*"`;  // Matches anything in quotes
   private readonly symbols = String.raw`[\[\]:]`;  // Matches brackets and colon
   private readonly separator = String.raw`\s+`;  // Matches whitespace
@@ -31,32 +32,20 @@ export class SurParser {
     const addToken = (value: string) => {
       if (!value) return;
       
-      // Handle compound notes with octave markers
-      if (value.match(/^(?:\.|,)*[SRGMPDN](?:'|,)*(?:[SRGMPDN](?:'|,)*)*$/)) {
-        if (value.startsWith('.')) {
-          // For lower octave compound notes, only apply to first note
-          const notes = value.slice(1).split(/([SRGMPDN]'*)/).filter(Boolean);
-          // First note gets the lower octave marker
-          tokens.push({ type: TokenType.NOTE, value: `.${notes[0]}` });
-          // Rest of the notes keep their octave markers
-          notes.slice(1).forEach(n => {
-            if (n.match(/[SRGMPDN]/)) {
-              tokens.push({ type: TokenType.NOTE, value: n });
-            }
-          });
-        } else {
-          // For normal or upper octave compound notes
-          // Split while preserving octave markers
-          const notes = value.split(/([SRGMPDN]'*)/).filter(Boolean);
-          notes.forEach(n => {
-            if (n.match(/[SRGMPDN]/)) {
-              tokens.push({ type: TokenType.NOTE, value: n });
-            }
-          });
-        }
-      } else if (value.match(/^(?:\.|,)*[SRGMPDN](?:'|,)*$|-|\*$/)) {
+      // Handle notes with octave markers
+      if (value.match(/^[SRGMPDN]['.]*$/)) {
         tokens.push({ type: TokenType.NOTE, value });
-      } else {
+      } else if (value.match(/^[SRGMPDN]['.]*(?:[SRGMPDN]['.]*)+$/)) {
+        // Handle compound notes
+        const notes = value.match(/[SRGMPDN]['.']*/g) || [];
+        notes.forEach(note => {
+          tokens.push({ type: TokenType.NOTE, value: note });
+        });
+      } else if (value.startsWith('"') && value.endsWith('"')) {
+        // Handle quoted lyrics
+        tokens.push({ type: TokenType.LYRICS, value: value.slice(1, -1) });
+      } else if (value.match(/^[a-zA-Z]/)) {
+        // Handle unquoted lyrics
         tokens.push({ type: TokenType.LYRICS, value });
       }
     };
@@ -125,61 +114,23 @@ export class SurParser {
     return tokens;
   }
 
-  private isNote(char: string): boolean {
-    return ['S', 'R', 'G', 'M', 'P', 'D', 'N'].includes(char.toUpperCase());
-  }
-
-  private parseNote(text: string): Note | null {
-    console.log('Parsing note:', text);
-    if (!text) {
-      console.log('Empty note text');
-      return null;
-    }
-
-    // Handle special notes (silence and sustain)
-    if (text === '-') {
-      console.log('Found silence note');
-      return { pitch: NotePitch.SILENCE };
-    }
-    if (text === '*') {
-      console.log('Found sustain note');
-      return { pitch: NotePitch.SUSTAIN };
-    }
-
-    // Parse octave
-    let octave = 0;
-    let workingText = text;
+  private parseNote(noteToken: string): Note {
+    // Extract note and octave marker
+    const pitch = noteToken[0] as NotePitch;
+    const octaveMarker = noteToken.slice(1);
     
-    while (workingText.endsWith("'")) {
-      octave += 1;
-      workingText = workingText.slice(0, -1);
-      console.log('Found upper octave, current octave:', octave);
-    }
-    while (workingText.endsWith(',')) {
-      octave -= 1;
-      workingText = workingText.slice(0, -1);
-      console.log('Found lower octave (comma), current octave:', octave);
-    }
-    while (workingText.startsWith('.')) {
-      octave -= 1;
-      workingText = workingText.slice(1);
-      console.log('Found lower octave (dot), current octave:', octave);
+    let octave: Octave = 0; // Default to middle octave
+    
+    if (octaveMarker === "'") {
+      octave = 1;  // Upper octave
+    } else if (octaveMarker === ".") {
+      octave = -1; // Lower octave
     }
 
-    // Parse pitch
-    try {
-      console.log('Parsing pitch:', workingText);
-      const pitch = NotePitch[workingText as keyof typeof NotePitch];
-      if (pitch === undefined) {
-        console.error('Invalid pitch:', workingText);
-        return null;
-      }
-      console.log('Found valid pitch:', pitch, 'with octave:', octave);
-      return { pitch, octave };
-    } catch (e) {
-      console.error('Error parsing note:', text, e);
-      return null;
-    }
+    return {
+      pitch,
+      octave
+    };
   }
 
   private tokensToElements(tokens: Token[]): ParsingElement[] {

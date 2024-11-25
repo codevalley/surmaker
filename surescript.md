@@ -29,15 +29,15 @@ Notes are represented using UPPERCASE letters only: S R G M P D N
 
 Notes can be in different octaves:
 - Default scale (madhya saptak): `S R G M P D N`
-- Upper octave (taar saptak): `S' R' G' M' P' D' N'`
-- Lower octave (mandra saptak): `.S .R .G .M .P .D .N`
+- Upper octave (taar saptak): `S' R' G' M' P' D' N'`  // Note with apostrophe after
+- Lower octave (mandra saptak): `S. R. G. M. P. D. N.`  // Note with dot after
 
 Examples:
 ```
 S           // Sa in middle octave
-S'          // Sa in upper octave
-.S          // Sa in lower octave
-[S .P]      // Sa in middle octave with Pa in lower octave
+S'          // Sa in upper octave (taar saptak)
+S.          // Sa in lower octave (mandra saptak)
+[S P.]      // Sa in middle octave with Pa in lower octave
 [S' G P]    // Sa in upper octave with Ga and Pa in middle octave
 ```
 
@@ -45,14 +45,13 @@ S'          // Sa in upper octave
   ```
   S     // Sa (middle)
   R'    // Re (upper)
-  .G    // Ga (lower)
+  G.    // Ga (lower)
   ```
 
 - **Compound Notes**: Multiple notes played together in a single beat
   ```
-  SRG           // Notes in middle octave
-  S'RG          // Sa in upper, Re and Ga in middle
-  [S R' .G]     // Notes in different octaves
+  [SRP]   // All notes in middle octave
+  [S'RP.] // Sa in upper, Re in middle, Pa in lower octave
   ```
 
 ### 2. Lyrics
