@@ -17,7 +17,7 @@ import {
 
 export class SurParser {
   // Regex patterns for tokenization
-  private readonly notePattern = String.raw`(?:\.|,)*[SRGMPDN](?:'|,)*|-|\*`;  // Matches .S, S', S, etc. and - *
+  private readonly notePattern = String.raw`(?:\.|,)*[SRGMPDN](?:'|,)*(?:[SRGMPDN](?:'|,)*)*`;  // Updated pattern
   private readonly quotedLyrics = String.raw`"[^"]*"`;  // Matches anything in quotes
   private readonly symbols = String.raw`[\[\]:]`;  // Matches brackets and colon
   private readonly separator = String.raw`\s+`;  // Matches whitespace
@@ -31,22 +31,30 @@ export class SurParser {
     const addToken = (value: string) => {
       if (!value) return;
       
-      // Handle compound notes (multiple notes with octave markers)
-      if (value.match(/^[SRGMPDN\-\*]['\.,]*(?:[SRGMPDN]['\.,]*)*$/)) {
-        // Split into individual notes while preserving octave markers
-        let i = 0;
-        while (i < value.length) {
-          let noteChar = value[i];
-          i++;
-          // Collect any octave markers that follow
-          while (i < value.length && "'.".includes(value[i])) {
-            noteChar += value[i];
-            i++;
-          }
-          tokens.push({ type: TokenType.NOTE, value: noteChar });
+      // Handle compound notes with octave markers
+      if (value.match(/^(?:\.|,)*[SRGMPDN](?:'|,)*(?:[SRGMPDN](?:'|,)*)*$/)) {
+        if (value.startsWith('.')) {
+          // For lower octave compound notes, only apply to first note
+          const notes = value.slice(1).split(/([SRGMPDN]'*)/).filter(Boolean);
+          // First note gets the lower octave marker
+          tokens.push({ type: TokenType.NOTE, value: `.${notes[0]}` });
+          // Rest of the notes keep their octave markers
+          notes.slice(1).forEach(n => {
+            if (n.match(/[SRGMPDN]/)) {
+              tokens.push({ type: TokenType.NOTE, value: n });
+            }
+          });
+        } else {
+          // For normal or upper octave compound notes
+          // Split while preserving octave markers
+          const notes = value.split(/([SRGMPDN]'*)/).filter(Boolean);
+          notes.forEach(n => {
+            if (n.match(/[SRGMPDN]/)) {
+              tokens.push({ type: TokenType.NOTE, value: n });
+            }
+          });
         }
       } else if (value.match(/^(?:\.|,)*[SRGMPDN](?:'|,)*$|-|\*$/)) {
-        // Single note with octave markers
         tokens.push({ type: TokenType.NOTE, value });
       } else {
         tokens.push({ type: TokenType.LYRICS, value });
