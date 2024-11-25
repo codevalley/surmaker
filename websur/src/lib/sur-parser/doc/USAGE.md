@@ -123,6 +123,167 @@ if (note.lyrics) {
 }
 ```
 
+## Builder Pattern
+
+The library provides a fluent builder interface for programmatically creating SureScript documents:
+
+```typescript
+import { SurDocumentBuilder, NotePitch } from 'sur-parser';
+
+// Create a new document using the builder
+const doc = new SurDocumentBuilder()
+  // Add metadata
+  .addMetadata('name', 'My Composition')
+  .addMetadata('raag', 'Bhoop')
+  .addMetadata('taal', 'teental')
+  
+  // Add scale notes
+  .addScaleNote(NotePitch.S, 'Sa')
+  .addScaleNote(NotePitch.R, 'Re')
+  .addScaleNote(NotePitch.G, 'Ga')
+  .addScaleNote(NotePitch.P, 'Pa')
+  
+  // Create sections and beats
+  .startSection('Sthayi')
+  .startBeat({ row: 0, beat_number: 0 })
+  .addNote(NotePitch.S, { octave: 0 })
+  .addNote(NotePitch.R, { octave: 0 })
+  .startBeat({ row: 0, beat_number: 1 })
+  .addRest()  // Add a rest beat
+  .startBeat({ row: 0, beat_number: 2 })
+  .addNote(NotePitch.G, { octave: 1, lyrics: 'ga' })  // Note with lyrics in upper octave
+  .build();
+```
+
+The builder provides several convenience methods:
+
+### Metadata Management
+```typescript
+// Add individual metadata
+builder.addMetadata('name', 'Composition Name');
+
+// Set multiple metadata values at once
+builder.setMetadata({
+  name: 'Composition Name',
+  raag: 'Bhoop',
+  taal: 'teental',
+  tempo: 'madhya'
+});
+```
+
+### Scale Definition
+```typescript
+// Add individual scale notes
+builder.addScaleNote(NotePitch.S, 'Sa');
+
+// Set entire scale at once
+builder.setScale({
+  [NotePitch.S]: 'Sa',
+  [NotePitch.R]: 'Re',
+  [NotePitch.G]: 'Ga',
+  [NotePitch.M]: 'Ma',
+  [NotePitch.P]: 'Pa',
+  [NotePitch.D]: 'Dha',
+  [NotePitch.N]: 'Ni'
+});
+```
+
+### Composition Building
+```typescript
+builder
+  .startSection('Sthayi')
+  // Add a beat with a note and lyrics
+  .startBeat({ row: 0, beat_number: 0 })
+  .addNote(NotePitch.S, { 
+    octave: 0,        // 0: middle, 1: upper, -1: lower
+    lyrics: 'sa'
+  })
+  // Add a rest beat
+  .startBeat({ row: 0, beat_number: 1 })
+  .addRest()
+  // Add a sustained note
+  .startBeat({ row: 0, beat_number: 2 })
+  .addSustain()
+  // Add lyrics without a note
+  .startBeat({ row: 0, beat_number: 3 })
+  .addLyrics('text');
+```
+
+## Utility Functions
+
+The library includes the `SurDocumentUtils` class with helpful static methods for common operations:
+
+### Converting Between String and Document
+
+```typescript
+import { SurDocumentUtils } from 'sur-parser';
+
+// Parse SureScript content to document
+const content = `
+%% CONFIG
+name: "Example"
+raag: "bhoop"
+
+%% SCALE
+S -> Sa
+R -> Re
+
+%% COMPOSITION
+#Section1
+b: [S R][G P]
+`;
+
+const doc = SurDocumentUtils.fromString(content);
+
+// Convert document back to string
+const outputContent = SurDocumentUtils.toString(doc);
+```
+
+### Document Validation
+
+```typescript
+import { SurDocumentUtils } from 'sur-parser';
+
+try {
+  SurDocumentUtils.validate(doc);
+  console.log('Document is valid');
+} catch (error) {
+  console.error('Validation failed:', error.message);
+}
+```
+
+The validator checks for:
+- Required metadata fields
+- Scale note definitions
+- Section structure
+- Beat positions
+- And more...
+
+## Error Handling
+
+Always wrap document operations in try-catch blocks to handle potential errors:
+
+```typescript
+try {
+  const doc = new SurDocumentBuilder()
+    .addMetadata('name', 'My Composition')
+    .addScaleNote(NotePitch.S, 'Sa')
+    .startSection('Sthayi')
+    .startBeat({ row: 0, beat_number: 0 })
+    .addNote(NotePitch.S)
+    .build();
+} catch (error) {
+  console.error('Failed to build document:', error.message);
+}
+```
+
+Common errors include:
+- Missing required metadata
+- Empty scale definitions
+- Invalid note pitches
+- Missing section title
+- Invalid beat positions
+
 ## Type Definitions
 
 ### Key Interfaces
@@ -222,4 +383,3 @@ function validateDocument(document: SurDocument): boolean {
 
     return true;
 }
-```

@@ -43,15 +43,15 @@ Enhance type safety and developer experience through TypeScript features.
 Improve the API design and add new features for better usability.
 
 ### Tasks
-- [ ] Implement Builder Pattern
-  - [ ] Create DocumentBuilder class
-  - [ ] Add fluent interface for document construction
-  - [ ] Include validation in builder steps
+- [x] Implement Builder Pattern
+  - [x] Create DocumentBuilder class
+  - [x] Add fluent interface for document construction
+  - [x] Include validation in builder steps
 
-- [ ] Add Utility Methods
-  - [ ] Add method to validate document structure
-  - [ ] Create helpers for common operations
-  - [ ] Add serialization methods
+- [x] Add Utility Methods
+  - [x] Add method to validate document structure
+  - [x] Create helpers for common operations
+  - [x] Add serialization methods
 
 - [ ] Implement Stream Processing
   - [ ] Add support for parsing large files
