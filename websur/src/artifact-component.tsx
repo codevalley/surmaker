@@ -1073,7 +1073,7 @@ const PreviewContent: React.FC<PreviewContentProps> = ({
   return (
     <Card className="w-full">
       {/* Always show header, but simplified in compact mode */}
-      <CardHeader className={`border-b border-gray-200 ${hideControls ? 'py-3' : 'pb-4'} px-6`}>
+      <CardHeader className={`border-b border-gray-200 ${hideControls ? 'py-3' : 'pb-4'} px-12`}>
         <div className="flex justify-between items-center">
           <div className={`flex items-center gap-6 ${hideControls ? 'text-base' : ''}`}>
             <h2 className={hideControls ? 'text-2xl font-medium' : 'text-4xl font-bold'}>
@@ -1143,7 +1143,7 @@ const PreviewContent: React.FC<PreviewContentProps> = ({
         )}
       </CardHeader>
 
-      <CardContent className="px-6">
+      <CardContent className="px-12">
         <div className="space-y-6">
           {(() => {
             try {
