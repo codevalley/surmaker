@@ -34,94 +34,98 @@ export enum ElementType {
   CLOSE_BRACKET = 'CLOSE_BRACKET'
 }
 
+export type Octave = -1 | 0 | 1; // -1: lower, 0: middle, 1: upper
+export type MetadataKey = 'name' | 'raag' | 'taal' | 'beats_per_row' | 'tempo' | string;
+
 export interface Token {
-  type: TokenType;
-  value: string;
+  readonly type: TokenType;
+  readonly value: string;
 }
 
 export interface Note {
-  pitch: NotePitch;
-  octave?: number;
+  readonly pitch: NotePitch;
+  readonly variant?: NoteVariant;
+  readonly octave?: Octave;
 }
 
 export interface Element {
-  note?: Note;
-  lyrics?: string;
+  readonly note?: Note;
+  readonly lyrics?: string;
 }
 
 export interface Beat {
-  elements: Element[];
-  bracketed: boolean;
+  readonly elements: readonly Element[];
+  readonly bracketed: boolean;
+  readonly position: {
+    readonly row: number;
+    readonly beat_number: number;
+  };
 }
 
 export interface Section {
-  title: string;
-  beats: Beat[];
+  readonly title: string;
+  readonly beats: readonly Beat[];
 }
 
 export interface Composition {
-  sections: Section[];
+  readonly sections: readonly Section[];
 }
 
 export interface Scale {
-  notes: Record<string, string>;
+  readonly notes: Readonly<Record<NotePitch, string>>;
 }
 
-export interface SurMetadata {
-  [key: string]: string;
+export interface SurMetadata extends Readonly<Record<MetadataKey, string>> {
+  readonly name: string;      // Required
+  readonly raag?: string;     // Optional but common
+  readonly taal?: string;     // Optional but common
+  readonly tempo?: string;    // Optional
+  readonly beats_per_row?: string; // Optional
 }
 
 export interface SurDocument {
-  metadata: SurMetadata;
-  scale: Scale;
-  composition: Composition;
+  readonly metadata: SurMetadata;
+  readonly scale: Scale;
+  readonly composition: Composition;
 }
 
 export interface ParsingElement extends Element {
-  type: ElementType;
+  readonly type: ElementType;
 }
 
-// Helper function to determine if a string is a note
+/**
+ * Checks if a string represents a valid musical note.
+ * @param str - The string to check
+ * @returns True if the string is a valid note, false otherwise
+ */
 export const isNote = (str: string): boolean => {
-  // Notes are:
-  // 1. Single uppercase letters from SRGMPDN
-  // 2. Can have octave markers (. or ')
-  // 3. Can be - (silence) or * (sustain)
-  const validNotes = ['S', 'R', 'G', 'M', 'P', 'D', 'N', '-', '*'];
+  const validNotes = Object.values(NotePitch);
   const baseNote = str.charAt(0);
   const rest = str.slice(1);
   
-  if (!validNotes.includes(baseNote)) return false;
+  if (!validNotes.includes(baseNote as NotePitch)) return false;
   if (rest && !rest.match(/^[.']*$/)) return false;
   
   return true;
 };
 
-// Helper function to determine if a string is lyrics
+/**
+ * Checks if a string represents lyrics.
+ * @param str - The string to check
+ * @returns True if the string represents lyrics, false otherwise
+ */
 export const isLyrics = (str: string): boolean => {
-  // Remove any whitespace
-  str = str.trim();
-  
-  // Empty string is not lyrics
-  if (!str) return false;
-  
-  // If it's a valid note, it's not lyrics
-  if (isNote(str)) return false;
-  
-  // If it's in quotes, it's lyrics
-  if (str.startsWith('"') && str.endsWith('"')) return true;
-  
-  // If it contains any lowercase letters, it's lyrics
-  if (/[a-z]/.test(str)) return true;
-  
-  // If it's a special character, it's not lyrics
-  if (str === '-' || str === '*') return false;
-  
-  return true;
+  // Lyrics are any non-empty string that doesn't start with a note or special character
+  if (!str || str.length === 0) return false;
+  return !isNote(str) && !['[', ']', ':'].includes(str);
 };
 
-// Helper function to tokenize a beat content
-export const tokenizeBeatContent = (content: string): Token[] => {
+/**
+ * Helper function to tokenize beat content.
+ * @param content - The beat content to tokenize
+ * @returns Array of tokens
+ */
+export const tokenizeBeatContent = (content: string): readonly Token[] => {
   const tokens: Token[] = [];
   let current = '';
   let inQuotes = false;
