@@ -1,0 +1,91 @@
+%% CONFIG
+name: "Albela Sajan"
+raag: "aahir bhairav"
+taal: "teental"
+beats_per_row: "16"
+tempo: "drut"
+
+%% SCALE
+S -> Sa
+r -> Komal Re
+R -> Shuddha Re
+g -> Komal Ga
+G -> Shuddha Ga
+m -> Shuddha Ma
+M -> Teevra Ma
+P -> Pa
+d -> Komal Dha
+D -> Shuddha Dha
+n -> Komal Ni
+N -> Shuddha Ni
+
+%% COMPOSITION
+#Sthayi
+b: - - - - - - Al be - la - sa - ja nn -
+b: aa - oo - re - Al be - la - sa - ja nn -
+b: aa - oo - re - Al be - la - sa - ja nn -
+b: aa - oo - re - Mo ra ati man - - su u kh -
+b: paa - oo - re - Al be - la - sa - ja nn -
+b: aa - oo - re - Mo ra ati man - - su u kh -
+b: paa - oo - re - Al be - la - sa - ja nn -
+
+#Taan1
+b: - - - - - - Al be - la - sa - ja nn -
+b: MD NS' R' - - - - - S'R' NS' DN PD MP GM RG RS
+b: SR GM P - GM PD N - MP DN S' - DN S'R' G' R'
+b: S' N D P GM RS - GM RS - GM RS sa - ja nn
+b: aa - oo - re - Al be - la - sa - ja nn -
+b: aa - oo - re - - - - - - - - - - -
+
+#Antara-Aalap
+b: - - - - - - - - - man - gal - gaa - oo
+b: - cha uk pu ra oo - - - man - gal - gaa - oo
+b: S' G' M' - P' - - - G' M' - R' - - N -
+b: - R' - - N - - P - M - R - - - -
+b: R - M - P - N - D N - R' - - - -
+b: S' - - - - - - - - man gal - gaa - oo -
+b: - cha uk pu ra oo - - - Man Ra ng Pre ee t -
+b: pa a oo - re - Al be - la - sa - ja nn 
+b: aa - oo - re - Mo ra ati man - - su u kh -
+b: paa - oo - re - Al be - la - sa - ja nn -
+b: aa - oo - re - - - - - - - - - - -
+
+#Antara-Taan(A)
+b: - - - - - - - - - man gal - gaa - oo -
+b: cha uk pu ra oo - - - - man gal - gaa - oo -
+b: SR GM PM GM PD ND PD NS' DN S'R' G'R' S' - S'R' S'R' NS'
+b: NS' DN DN PD PD GM GR S - GM PD NS' - MP DN S'
+b: - PD NS' - DN S' - NS' - man gal - gaa - oo -
+
+
+#Antara-Taan(B)
+b: cha uk pu ra oo - - - - man gal - gaa - oo -
+b: S' S'S' NS' DN S' *S' *S' S'N S'D NR' *R' S'R' S'R' G'R' R'S' S'R'
+b: N NS' D DN P PD M MD PM GR S SR RG RG GM GM
+b: MP MP PD PD DN DN NS' - - man gal - gaa - oo -
+b: - cha uk pu ra oo - - - - - - - - - -
+
+#IkJal
+b: - - - - - - - - - Ik Jal Dee ee pa kk - -
+b: Ik ma nn ma ee ra - - - Ik Jal Dee ee pa kk -
+b: Ik ma nn ma ee ra - - - phir bhi na jaa ye me ra
+b: gh ar ka aa an dhe ra - - phir bhi na jaa ye me ra
+b: gh ar ka aa an dhe ra - Ik Jal Dee ee pa kk - -
+b: Ik ma nn ma ee ra - - - phir bhi na jaa ye me ra
+b: gh ar ka aa an dhe ra - - tad pat - tar pat -
+b: pa a oo - re - Al be - la - sa - ja nn -
+b: aa - oo - re - Al be - la - sa - ja nn -
+b: aa - oo - re - Mo ra ati man - - su u kh -
+b: pa a oo - re - Al be - la - sa - ja nn -
+b: aa a oo - re - Al be - la - sa - ja nn -
+
+#Sawaal Jawaab
+b: - DN S'R' DN S'R' DN S'R' S' - SR GM SR GM SR GM G
+b: - S'S' NS' DN S' GG MP GM RS DN S'R DR' S' SR GM RM 
+b: G S'R NS' DN D GM RG SR S S'R NS' N - GM RG R 
+b: - S'R S' - - S'R' S' - - S'R' - - - S'R' - - 
+b: - S' - - - S' - - - S'R' S'S' S' S'S' S'R' S'S' S'  
+b: S'S' S'R' S'S' S' S'S' S'S' NN DD PP MM GG RR SS GM PD NS'  
+b: S' GM PD NS' S' GM PD NS' GM PD NS' S' GM PD NS' S'  
+b: GM PD NS' GM PD NS' S' GM PD NS' S' GM PD NS' S' S' 
+b: S' - - - - - - - - - - - - - - -
