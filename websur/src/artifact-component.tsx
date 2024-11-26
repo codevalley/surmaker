@@ -2,7 +2,7 @@ import React, { useState, useMemo, memo, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Download, FileText, Book, Eye, EyeOff, ArrowRightLeft, ArrowUpDown, Copy, Check } from 'lucide-react';
+import { Download, FileText, Book, Eye, EyeOff, ArrowRightLeft, ArrowUpDown, Copy, Check, Pencil, Save, Music, LayoutGrid, Rows, History, Timer } from 'lucide-react';
 import { SurParser, Note, Beat, Element, ElementType, NotePitch } from './lib/sur-parser';
 import type { SurDocument, Section } from './lib/sur-parser/types';
 import html2pdf from 'html2pdf.js';
@@ -602,27 +602,42 @@ const StatusBar: React.FC<{
 }> = ({ stats, lastSaved, onRecentFilesClick, recentFilesCount }) => {
   return (
     <div className="h-8 bg-gray-100 border-t flex items-center px-4 text-sm fixed bottom-0 left-0 right-0">
-      <div className="flex gap-4 text-gray-600">
-        <span>{stats.notes} notes</span>
-        <span>{stats.sections} sections</span>
-        <span>{stats.rows} taans</span>
+      {/* Left section with fixed width - reduced gap and more compact layout */}
+      <div className="w-[240px] flex items-center gap-3 text-gray-600 whitespace-nowrap">
+        <div className="flex items-center gap-1">
+          <Music className="h-3.5 w-3.5" />
+          <span>{stats.notes} beats</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <LayoutGrid className="h-3.5 w-3.5" />
+          <span>{stats.sections} sections</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Timer className="h-3.5 w-3.5" />
+          <span>{stats.rows} taals</span>
+        </div>
       </div>
       
-      <div className="flex-1 flex justify-center">
+      {/* Center section - absolutely positioned */}
+      <div className="absolute left-1/2 -translate-x-1/2">
         {lastSaved && (
-          <span className="text-gray-500">
-            Last saved {formatTimeAgo(lastSaved)}
-          </span>
+          <div className="flex items-center gap-1.5 text-gray-500 whitespace-nowrap">
+            <History className="h-3.5 w-3.5" />
+            <span>Auto saved {formatTimeAgo(lastSaved)}</span>
+          </div>
         )}
       </div>
       
-      <button
-        onClick={onRecentFilesClick}
-        className="flex items-center gap-2 hover:bg-gray-200 px-3 py-1 rounded"
-      >
-        <Book className="h-4 w-4" />
-        {recentFilesCount} recent files
-      </button>
+      {/* Right section with fixed width */}
+      <div className="w-[240px] ml-auto">
+        <button
+          onClick={onRecentFilesClick}
+          className="flex items-center gap-2 hover:bg-gray-200 px-3 py-1 rounded ml-auto whitespace-nowrap"
+        >
+          <Book className="h-4 w-4" />
+          {recentFilesCount} recent files
+        </button>
+      </div>
     </div>
   );
 };
@@ -705,37 +720,53 @@ const TitleBar: React.FC<{
   lastSaved 
 }) => {
   return (
-    <div className="h-14 border-b bg-white flex items-center px-4">
-      <div className="flex items-center gap-4 flex-1">
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => onTitleChange(e.target.value)}
-          className="text-xl font-semibold bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-blue-200 rounded px-2"
-          placeholder="Untitled Composition"
-        />
-        
-        <div className="flex gap-2 ml-4">
-          <Button
-            variant={activeTab === 'edit' ? 'default' : 'ghost'}
-            size="sm"
+    <div className="h-14 border-b bg-white flex items-center px-4 relative">
+      {/* Left section */}
+      <div className="w-[240px]"> {/* Fixed width to match right section */}
+        <div className="relative group">
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => onTitleChange(e.target.value)}
+            className="text-xl font-semibold bg-transparent w-full 
+                     border-2 border-transparent rounded-lg px-3 py-1
+                     focus:outline-none focus:border-blue-100 
+                     group-hover:border-gray-100 transition-colors"
+            placeholder="Untitled Composition"
+          />
+          <Pencil className="h-4 w-4 text-gray-400 absolute right-2 top-1/2 -translate-y-1/2 
+                          opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+      </div>
+
+      {/* Center section - Tab switcher */}
+      <div className="absolute left-1/2 -translate-x-1/2">
+        <div className="flex bg-gray-100 p-1 rounded-lg">
+          <button
             onClick={() => onTabChange('edit')}
-            className={activeTab === 'edit' ? 'bg-black text-white hover:bg-black/90' : ''}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'edit' 
+                ? 'bg-white text-black shadow-sm' 
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
           >
             Edit
-          </Button>
-          <Button
-            variant={activeTab === 'view' ? 'default' : 'ghost'}
-            size="sm"
+          </button>
+          <button
             onClick={() => onTabChange('view')}
-            className={activeTab === 'view' ? 'bg-black text-white hover:bg-black/90' : ''}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'view' 
+                ? 'bg-white text-black shadow-sm' 
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
           >
             View
-          </Button>
+          </button>
         </div>
       </div>
       
-      <div className="flex items-center gap-2">
+      {/* Right section */}
+      <div className="w-[240px] ml-auto flex justify-end gap-2"> {/* Fixed width to match left section */}
         <input
           type="file"
           id="file-upload"
@@ -744,7 +775,7 @@ const TitleBar: React.FC<{
           onChange={onLoadFile}
         />
         <label htmlFor="file-upload">
-          <Button variant="ghost" size="sm" className="gap-2" asChild>
+          <Button variant="outline" size="sm" className="gap-2" asChild>
             <div>
               <FileText className="h-4 w-4" />
               Load
@@ -753,11 +784,12 @@ const TitleBar: React.FC<{
         </label>
 
         <Button
-          variant="default"
+          variant="outline"
           size="sm"
           onClick={onSave}
-          className="gap-2 bg-black hover:bg-black/90 text-white"
+          className="gap-2"
         >
+          <Save className="h-4 w-4" />
           Save
         </Button>
       </div>
