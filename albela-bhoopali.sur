@@ -1,0 +1,80 @@
+%% CONFIG
+name: "Albela Sajan"
+raag: "bhoopali"
+taal: "teental"
+beats_per_row: "16"
+tempo: "drut"
+
+%% SCALE
+S -> Sa
+r -> Komal Re
+R -> Shuddha Re
+g -> Komal Ga
+G -> Shuddha Ga
+m -> Shuddha Ma
+M -> Teevra Ma
+P -> Pa
+d -> Komal Dha
+D -> Shuddha Dha
+n -> Komal Ni
+N -> Shuddha Ni
+
+%% COMPOSITION
+
+#Aalaap
+b: - - - - - - - - - - - - - - - - 
+
+#Sthayi
+b: - - - - - - al be - la - sa - ja nn -
+b: aa - oo - re - al be - la - sa - ja nn -
+b: aa - oo - re - mo ra ati man - - su u kh -
+b: paa - oo - re - al be - la - sa - ja nn -
+b: aa - oo - re - mo ra ati man - - su u kh -
+b: paa - oo - re - al be - la - sa - ja nn - 
+
+#Taan1
+b: aa - oo - PP GR PP GR PP GR S - S'S' DP S'S' DP 
+b: S'S' DP D - SR GP - - - - - - RG PD - -
+b: - - - - GP DS' - - - - - - P'D' S'R' G' R'
+b: S' D P G R S al be - la - sa - ja nn -
+b: aa - oo - re - al be - la - sa - ja nn -
+b: - aa - oo - re - - - - - - - - - -
+
+#Antara1
+b: - - - - - - - - - - cha uk pu ra oo -
+b: - man - gal - gaa - o - - cha uk pu ra oo -
+b: - man - gal - gaa - o - - a ti ma nn su kh
+b: pa a oo - re - al be - la - sa - ja nn -
+b: aa - oo - re - mo ra ati man - - su u kh -
+b: po a oo - re - al be - la - sa - ja nn -
+b: aa - oo - re - - - - - - - - - - -
+
+#Antara2
+b: - - - - - - - - - ang su - nan - dith -
+b: ma nn aa - - nan dith - - ang su - nan - dith -
+b: D - - - - - - - S' - - - - - - S'R'
+b: D - - - - - - DS' P - - - - - - PD
+b: G - P - D - S' - - ang su - nan - dith -
+b: ma nn aa - - nan dith - - ang su - nan - dith -
+b: ma nn aa - - nan dith - - cha hu a ra ng ba r
+b: sa - - - yo - - - - cha hu a ra ng ba r
+b: sa - yo - ri - al be - la - sa - ja nn -
+b: aa - oo - re - - - - - - - - - - -
+
+#Taan3
+b: - - - - - - SR GP SR GP SR GP GR S GP DS'
+b: GP DS' GP DS' DP G S'N DP MD PM GR NR S NR GM PM
+b: GR GM DN S'N DP MD NR' G'R' S'N S'S' DP GR S S'S' DP GR
+b: S S'S' DP GR S - al be - la - sa - ja nn -
+b: aa - oo - re - mo ra ati man - - su u kh -
+b: paa - oo - re - al be - la - sa - ja nn -
+b: aa - oo - re - al be - la - sa - ja nn -
+b: aa - oo - re - - - - - - - - - - -
+
+#Switch Aalap
+b: P P P P MD PM GR GM P - SR G - - RG P
+b: - - GP D - - PD S' - - P N S' G' R' N
+b: P G R .N .P S - - - - SG -G GP -P MN -N
+b: NS' S' GP NS' N- NP -P G- GR -R .N- .NP -P S SR GM
+b: PM GM PD N ND PD NS' G'G' R'R' S'S' NN DD PP MM GG RR
+b: S - - - - - - - - - - - - - - -

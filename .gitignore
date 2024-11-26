@@ -2,7 +2,7 @@
 .venv/
 
 # Ignore generated .sur files
-*.sur
+*-local.sur
 # Ignore vscode settings
 .vscode/
 # Ignore tests
