@@ -1,0 +1,65 @@
+%%CONFIG
+title: Large Scale Performance Test
+composer: Test Suite
+tempo: 90
+taal: teentaal
+
+@SCALE
+S -> Sa
+R -> Re
+G -> Ga
+M -> Ma
+P -> Pa
+D -> Da
+N -> Ni
+
+@COMPOSITION
+// Basic patterns repeated multiple times
+b: S R G M P D N S'
+b: S R G M P D N S'
+b: SR GM [P D] [N S']
+b: SR [G M] [P D] NS'
+
+// Complex patterns with sustains
+b: S * * *
+b: - S - S
+b: [S R G] [M P D] NS'-
+b: [S R G] [M P D] [N S' -]
+b: "sa":S "re":R "ga":G "ma":M
+b: "sa":S "re":R "ga":G "ma":M
+
+// Octave variations
+b: S. R. G. M. P. D. N. S
+b: S' R' G' M' P' D' N' S''
+b: [S. R. G.] M.P.D. [N. S -]
+b: [S' R' G'] [M' P' D'] *N'S'-
+
+// Mixed patterns with sustains
+b: [S R G] * MPD* *N.P. N.P.-*
+b: [N S' -] * ---*
+b: [S R G] * MPD*
+b: NS'-* [- - -] *
+
+// Lyrics with complex patterns
+b: "sa":S "re":R "ga":G "ma":M
+b: "pa":P "dha":D "ni":N "sa":S'
+b: ["sa":S "re":R] ["ga":G "ma":M]
+b: ["pa":P "dha":D] ["ni":N "sa":S']
+
+// Mixed octaves and patterns
+b: [S. R G'] [M. P D'] [N. S' -]
+b: [S' R. G] [M' P. D] [N' S. -]
+b: [S. R G'] * [M. P D'] *
+b: [N. S' -] * [- - -] *
+
+// Repeated complex patterns
+b: S R G M P D N S'
+b: [S R] [G M] [P D] [N S']
+b: S * * *
+b: - S - S
+b: [S R G] [M P D] [N S' -]
+b: "sa":S "re":R "ga":G "ma":M
+b: S. R. G. M. P. D. N. S
+b: S' R' G' M' P' D' N' S'
+b: [S R G] * [M P D] *
+b: [N S' -] * [- - -] *

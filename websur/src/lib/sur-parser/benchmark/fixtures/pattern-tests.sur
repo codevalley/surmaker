@@ -1,0 +1,49 @@
+%%CONFIG
+title: Pattern Performance Tests
+composer: Test Suite
+tempo: 80
+
+@SCALE
+S -> Sa
+R -> Re
+G -> Ga
+M -> Ma
+P -> Pa
+D -> Da
+N -> Ni
+
+@COMPOSITION
+// Simple notes
+b: S R G M P D N S'
+b: S R G M P D N S'
+b: S R G M P D N S'
+
+// Octave variations
+b: S. R. G. M. P. D. N. S
+b: S' R' G' M' P' D' N' S''
+b: S. R. G. M. P. D. N. S
+b: S' R' G' M' P' D' N' S''
+
+// Compound notes
+b: [S R] [G M] [P D] [N S']
+b: [S R] [G M] [P D] [N S']
+b: SR GM PD NS'
+b: SR GM PD NS'
+
+// Sustain patterns
+b: S * * *
+b: [S R G] * [M P D] *
+b: S * * *
+b: [S R G] * [M P D] *
+
+// Mixed patterns with lyrics
+b: "sa":S "re":R "ga":G "ma":M
+b: ["sa":S "re":R] ["ga":G "ma":M]
+b: "sa":S "re":R "ga":G "ma":M
+b: ["sa":S "re":R] ["ga":G "ma":M]
+
+// Complex mixed patterns
+b: [S. R G'] [M. P D'] [N. S' -]
+b: [S' R. G] [M' P. D] [N' S. -]
+b: [S. R G'] * [M. P D'] *
+b: [N. S' -] * [- - -] *

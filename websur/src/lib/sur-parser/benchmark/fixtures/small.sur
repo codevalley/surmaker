@@ -1,0 +1,17 @@
+%%CONFIG
+title: Simple Scale Practice
+composer: Test Suite
+tempo: 60
+
+@SCALE
+S -> Sa
+R -> Re
+G -> Ga
+M -> Ma
+P -> Pa
+D -> Da
+N -> Ni
+
+@COMPOSITION
+b: S R G M P D N S'
+b: S' N D P M G R S

@@ -1,0 +1,26 @@
+%%CONFIG
+title: Medium Complexity Test
+composer: Test Suite
+tempo: 80
+taal: teentaal
+
+@SCALE
+S -> Sa
+R -> Re
+G -> Ga
+M -> Ma
+P -> Pa
+D -> Da
+N -> Ni
+
+@COMPOSITION
+b: S R G M P D N S'
+b: [S R] [G M] [P D] NS'
+b: S * * *
+b: - S - S
+b: [S R G] [M P D] NS'-
+b: "sa":S "re":R "ga":G "ma":M
+b: S. R. G. M. P. D. N. S
+b: S' R' G' M' P' D' N' S'
+b: [S R G] * MPD*
+b: [N S' -] * ---*
