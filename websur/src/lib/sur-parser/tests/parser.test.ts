@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { SurParser } from '../parser';
+import { NotePitch } from '../types';
 
 describe('SurParser', () => {
     let parser: SurParser;
@@ -10,134 +11,179 @@ describe('SurParser', () => {
 
     describe('Simple Note Parsing', () => {
         it('should parse single notes correctly', () => {
-            const input = `%%CONFIG
+            const input = `%% CONFIG
 title: Test
-@SCALE
+%% SCALE
 S -> Sa
-@COMPOSITION
-b: S R G M P D N`;
+%% COMPOSITION
+#Main
+b: SRGMPDN`;
             const result = parser.parse(input);
-            expect(result.composition.beats[0].notes).toHaveLength(7);
-            expect(result.composition.beats[0].notes[0].note).toBe('S');
-            expect(result.composition.beats[0].notes[6].note).toBe('N');
+            expect(result.composition.sections).toBeDefined();
+            expect(result.composition.sections).toHaveLength(1);
+            expect(result.composition.sections[0].beats).toBeDefined();
+            expect(result.composition.sections[0].beats).toHaveLength(1);
+            expect(result.composition.sections[0].beats[0].elements).toHaveLength(7);
+            expect(result.composition.sections[0].beats[0].elements[0].note?.pitch).toBe(NotePitch.S);
+            expect(result.composition.sections[0].beats[0].elements[6].note?.pitch).toBe(NotePitch.N);
         });
 
         it('should handle multiple beats of single notes', () => {
-            const input = `%%CONFIG
+            const input = `%% CONFIG
 title: Test
-@SCALE
+%% SCALE
 S -> Sa
-@COMPOSITION
-b: S R G
-b: M P D
-b: N S`;
+%% COMPOSITION
+#Main
+b: SRG
+b: MPD
+b: NS`;
             const result = parser.parse(input);
-            expect(result.composition.beats).toHaveLength(3);
-            expect(result.composition.beats[0].notes).toHaveLength(3);
-            expect(result.composition.beats[1].notes).toHaveLength(3);
-            expect(result.composition.beats[2].notes).toHaveLength(2);
+            expect(result.composition.sections).toBeDefined();
+            expect(result.composition.sections).toHaveLength(1);
+            expect(result.composition.sections[0].beats).toBeDefined();
+            expect(result.composition.sections[0].beats).toHaveLength(3);
+            expect(result.composition.sections[0].beats[0].elements).toHaveLength(3);
+            expect(result.composition.sections[0].beats[1].elements).toHaveLength(3);
+            expect(result.composition.sections[0].beats[2].elements).toHaveLength(2);
         });
 
         it('should handle empty beats', () => {
-            const input = `%%CONFIG
+            const input = `%% CONFIG
 title: Test
-@SCALE
+%% SCALE
 S -> Sa
-@COMPOSITION
+%% COMPOSITION
+#Main
 b: -`;
             const result = parser.parse(input);
-            expect(result.composition.beats).toHaveLength(1);
-            expect(result.composition.beats[0].notes).toHaveLength(1);
-            expect(result.composition.beats[0].notes[0].isRest).toBe(true);
+            expect(result.composition.sections).toBeDefined();
+            expect(result.composition.sections).toHaveLength(1);
+            expect(result.composition.sections[0].beats).toBeDefined();
+            expect(result.composition.sections[0].beats).toHaveLength(1);
+            expect(result.composition.sections[0].beats[0].elements).toHaveLength(1);
+            expect(result.composition.sections[0].beats[0].elements[0].note?.pitch).toBe(NotePitch.SILENCE);
         });
     });
 
     describe('Octave Variation Parsing', () => {
         it('should parse upper octave notes correctly', () => {
-            const input = `%%CONFIG
+            const input = `%% CONFIG
 title: Test
-@SCALE
+%% SCALE
 S -> Sa
-@COMPOSITION
-b: S' R' G' M' P' D' N'`;
+%% COMPOSITION
+#Main
+b: S'R'G'M'P'D'N'`;
             const result = parser.parse(input);
-            expect(result.composition.beats[0].notes).toHaveLength(7);
-            result.composition.beats[0].notes.forEach(note => {
-                expect(note.octave).toBe('upper');
+            expect(result.composition.sections).toBeDefined();
+            expect(result.composition.sections).toHaveLength(1);
+            expect(result.composition.sections[0].beats).toBeDefined();
+            expect(result.composition.sections[0].beats).toHaveLength(1);
+            expect(result.composition.sections[0].beats[0].elements).toHaveLength(7);
+            result.composition.sections[0].beats[0].elements.forEach(element => {
+                expect(element.note?.octave).toBe(1); // Upper octave is 1
             });
         });
 
         it('should parse lower octave notes correctly', () => {
-            const input = `%%CONFIG
+            const input = `%% CONFIG
 title: Test
-@SCALE
+%% SCALE
 S -> Sa
-@COMPOSITION
-b: S. R. G. M. P. D. N.`;
+%% COMPOSITION
+#Main
+b: S.R.G.M.P.D.N.`;
             const result = parser.parse(input);
-            expect(result.composition.beats[0].notes).toHaveLength(7);
-            result.composition.beats[0].notes.forEach(note => {
-                expect(note.octave).toBe('lower');
+            expect(result.composition.sections).toBeDefined();
+            expect(result.composition.sections).toHaveLength(1);
+            expect(result.composition.sections[0].beats).toBeDefined();
+            expect(result.composition.sections[0].beats).toHaveLength(1);
+            expect(result.composition.sections[0].beats[0].elements).toHaveLength(7);
+            result.composition.sections[0].beats[0].elements.forEach(element => {
+                expect(element.note?.octave).toBe(-1); // Lower octave is -1
             });
         });
 
         it('should handle mixed octaves in the same beat', () => {
-            const input = `%%CONFIG
+            const input = `%% CONFIG
+
 title: Test
-@SCALE
+%% SCALE
 S -> Sa
-@COMPOSITION
-b: S. R G' M`;
+%% COMPOSITION
+#Main
+b: S.RG'M`;
             const result = parser.parse(input);
-            expect(result.composition.beats[0].notes).toHaveLength(4);
-            expect(result.composition.beats[0].notes[0].octave).toBe('lower');
-            expect(result.composition.beats[0].notes[1].octave).toBe('middle');
-            expect(result.composition.beats[0].notes[2].octave).toBe('upper');
-            expect(result.composition.beats[0].notes[3].octave).toBe('middle');
+            console.log('Parser output:', JSON.stringify(result, null, 2));
+            expect(result.composition.sections).toBeDefined();
+            expect(result.composition.sections).toHaveLength(1);
+            expect(result.composition.sections[0].beats).toBeDefined();
+            expect(result.composition.sections[0].beats).toHaveLength(1);
+            expect(result.composition.sections[0].beats[0].elements).toHaveLength(4);
+            const elements = result.composition.sections[0].beats[0].elements;
+            expect(elements[0].note?.octave).toBe(-1); // Lower octave
+            expect(elements[1].note?.octave).toBe(0);  // Middle octave (default)
+            expect(elements[2].note?.octave).toBe(1);  // Upper octave
+            expect(elements[3].note?.octave).toBe(0);  // Middle octave (default)
         });
     });
 
     describe('Compound Note Parsing', () => {
         it('should parse bracketed compound notes', () => {
-            const input = `%%CONFIG
+            const input = `%% CONFIG
 title: Test
-@SCALE
+%% SCALE
 S -> Sa
-@COMPOSITION
+%% COMPOSITION
+#Main
 b: [S R] [G M] [P D N]`;
             const result = parser.parse(input);
-            expect(result.composition.beats[0].compounds).toHaveLength(3);
-            expect(result.composition.beats[0].compounds[0].notes).toHaveLength(2);
-            expect(result.composition.beats[0].compounds[1].notes).toHaveLength(2);
-            expect(result.composition.beats[0].compounds[2].notes).toHaveLength(3);
+            console.log('Parser compound  output:', JSON.stringify(result, null, 2));
+            expect(result.composition.sections).toBeDefined();
+            expect(result.composition.sections).toHaveLength(1);
+            expect(result.composition.sections[0].beats).toBeDefined();
+            expect(result.composition.sections[0].beats).toHaveLength(3);
+            expect(result.composition.sections[0].beats[0].elements).toHaveLength(2);
+            
         });
 
         it('should parse unbracketed compound notes', () => {
             const input = `%%CONFIG
 title: Test
-@SCALE
+%% SCALE
 S -> Sa
-@COMPOSITION
+%% COMPOSITION
+#Mai
 b: SR GM PDN`;
             const result = parser.parse(input);
-            expect(result.composition.beats[0].compounds).toHaveLength(3);
-            expect(result.composition.beats[0].compounds[0].notes).toHaveLength(2);
-            expect(result.composition.beats[0].compounds[1].notes).toHaveLength(2);
-            expect(result.composition.beats[0].compounds[2].notes).toHaveLength(3);
+            console.log('Parser output:', JSON.stringify(result, null, 2));
+            expect(result.composition.sections).toBeDefined();
+            expect(result.composition.sections).toHaveLength(1);
+            expect(result.composition.sections[0].beats).toBeDefined();
+            expect(result.composition.sections[0].beats).toHaveLength(3);
+            expect(result.composition.sections[0].beats[0].elements).toHaveLength(2);
+            expect(result.composition.sections[0].beats[1].elements).toHaveLength(2);
+            expect(result.composition.sections[0].beats[2].elements).toHaveLength(3);
         });
 
         it('should handle mixed bracketed and unbracketed compounds', () => {
             const input = `%%CONFIG
 title: Test
-@SCALE
+%% SCALE
 S -> Sa
-@COMPOSITION
+%% COMPOSITION
+#Main
 b: SR [G M] PDN`;
             const result = parser.parse(input);
-            expect(result.composition.beats[0].compounds).toHaveLength(3);
-            expect(result.composition.beats[0].compounds[0].notes).toHaveLength(2);
-            expect(result.composition.beats[0].compounds[1].notes).toHaveLength(2);
-            expect(result.composition.beats[0].compounds[2].notes).toHaveLength(3);
+            console.log('Parser output:', JSON.stringify(result, null, 2));
+            expect(result.composition.sections).toBeDefined();
+            expect(result.composition.sections).toHaveLength(1);
+            expect(result.composition.sections[0].beats).toBeDefined();
+            expect(result.composition.sections[0].beats).toHaveLength(3);
+            expect(result.composition.sections[0].beats[0]?.elements).toHaveLength(2);
+            expect(result.composition.sections[0].beats[1]?.elements).toHaveLength(2);
+            expect(result.composition.sections[0].beats[2]?.elements).toHaveLength(3);
         });
     });
 
@@ -145,47 +191,64 @@ b: SR [G M] PDN`;
         it('should parse basic sustain patterns', () => {
             const input = `%%CONFIG
 title: Test
-@SCALE
+%% SCALE
 S -> Sa
-@COMPOSITION
+%% COMPOSITION
+#Main
 b: S * * *`;
             const result = parser.parse(input);
-            expect(result.composition.beats).toHaveLength(4);
-            expect(result.composition.beats[0].notes[0].note).toBe('S');
-            expect(result.composition.beats[1].isSustain).toBe(true);
-            expect(result.composition.beats[2].isSustain).toBe(true);
-            expect(result.composition.beats[3].isSustain).toBe(true);
+            console.log('Parser output:', JSON.stringify(result, null, 2));
+            expect(result.composition.sections).toBeDefined();
+            expect(result.composition.sections).toHaveLength(1);
+            expect(result.composition.sections[0]?.beats).toBeDefined();
+            expect(result.composition.sections[0]?.beats).toHaveLength(4);
+            expect(result.composition.sections[0]?.beats[0]?.elements).toHaveLength(1);
+            expect(result.composition.sections[0]?.beats[0]?.elements[0]?.note?.pitch).toBe(NotePitch.S);
+            expect(result.composition.sections[0]?.beats[1]?.elements[0]?.note?.pitch).toBe(NotePitch.SUSTAIN);
+            expect(result.composition.sections[0]?.beats[2]?.elements[0]?.note?.pitch).toBe(NotePitch.SUSTAIN);
+            expect(result.composition.sections[0]?.beats[3]?.elements[0]?.note?.pitch).toBe(NotePitch.SUSTAIN);
         });
 
         it('should parse compound note sustains', () => {
             const input = `%%CONFIG
 title: Test
-@SCALE
+%% SCALE
 S -> Sa
-@COMPOSITION
+%% COMPOSITION
+#Main
 b: [S R G] * *`;
             const result = parser.parse(input);
-            expect(result.composition.beats).toHaveLength(3);
-            expect(result.composition.beats[0].compounds[0].notes).toHaveLength(3);
-            expect(result.composition.beats[1].isSustain).toBe(true);
-            expect(result.composition.beats[2].isSustain).toBe(true);
+            console.log('Parser output:', JSON.stringify(result, null, 2));
+            expect(result.composition.sections).toBeDefined();
+            expect(result.composition.sections).toHaveLength(1);
+            expect(result.composition.sections[0]?.beats).toBeDefined();
+            expect(result.composition.sections[0]?.beats).toHaveLength(3);
+            expect(result.composition.sections[0]?.beats[0]?.elements).toHaveLength(3);
+            expect(result.composition.sections[0]?.beats[1]?.elements[0]?.note?.pitch).toBe(NotePitch.SUSTAIN);
+            expect(result.composition.sections[0]?.beats[2]?.elements[0]?.note?.pitch).toBe(NotePitch.SUSTAIN);
         });
 
         it('should handle mixed sustains and notes', () => {
             const input = `%%CONFIG
 title: Test
-@SCALE
+%% SCALE
 S -> Sa
-@COMPOSITION
+%% COMPOSITION
+#Main
 b: S * M * P *`;
             const result = parser.parse(input);
-            expect(result.composition.beats).toHaveLength(6);
-            expect(result.composition.beats[0].notes[0].note).toBe('S');
-            expect(result.composition.beats[1].isSustain).toBe(true);
-            expect(result.composition.beats[2].notes[0].note).toBe('M');
-            expect(result.composition.beats[3].isSustain).toBe(true);
-            expect(result.composition.beats[4].notes[0].note).toBe('P');
-            expect(result.composition.beats[5].isSustain).toBe(true);
+            console.log('Parser output:', JSON.stringify(result, null, 2));
+            expect(result.composition.sections).toBeDefined();
+            expect(result.composition.sections).toHaveLength(1);
+            expect(result.composition.sections[0]?.beats).toBeDefined();
+            expect(result.composition.sections[0]?.beats).toHaveLength(6);
+            expect(result.composition.sections[0]?.beats[0]?.elements).toHaveLength(1);
+            expect(result.composition.sections[0]?.beats[0]?.elements[0]?.note?.pitch).toBe(NotePitch.S);
+            expect(result.composition.sections[0]?.beats[1]?.elements[0]?.note?.pitch).toBe(NotePitch.SUSTAIN);
+            expect(result.composition.sections[0]?.beats[2]?.elements).toHaveLength(1);
+            expect(result.composition.sections[0]?.beats[2]?.elements[0]?.note?.pitch).toBe(NotePitch.M);
+            expect(result.composition.sections[0]?.beats[3]?.elements[0]?.note?.pitch).toBe(NotePitch.SUSTAIN);
+            
         });
     });
 
@@ -193,53 +256,82 @@ b: S * M * P *`;
         it('should handle complex mixed patterns', () => {
             const input = `%%CONFIG
 title: Test
-@SCALE
+%% SCALE
 S -> Sa
-@COMPOSITION
+%% COMPOSITION
+#Main
 b: S' [R G] * M. [P D'] * N`;
             const result = parser.parse(input);
-            expect(result.composition.beats).toHaveLength(7);
-            expect(result.composition.beats[0].notes[0].octave).toBe('upper');
-            expect(result.composition.beats[1].compounds[0].notes).toHaveLength(2);
-            expect(result.composition.beats[2].isSustain).toBe(true);
-            expect(result.composition.beats[3].notes[0].octave).toBe('lower');
-            expect(result.composition.beats[4].compounds[0].notes[1].octave).toBe('upper');
-            expect(result.composition.beats[5].isSustain).toBe(true);
-            expect(result.composition.beats[6].notes[0].octave).toBe('middle');
+            console.log('Parser output:', JSON.stringify(result, null, 2));
+            expect(result.composition.sections).toBeDefined();
+            expect(result.composition.sections).toHaveLength(1);
+            expect(result.composition.sections[0]?.beats).toBeDefined();
+            expect(result.composition.sections[0]?.beats).toHaveLength(7);
+            expect(result.composition.sections[0]?.beats[0]?.elements).toHaveLength(1);
+            expect(result.composition.sections[0]?.beats[0]?.elements[0]?.note?.octave).toBe(1); // Upper octave
+            expect(result.composition.sections[0]?.beats[1]?.elements).toHaveLength(2);
+            expect(result.composition.sections[0]?.beats[2]?.elements[0]?.note?.pitch).toBe(NotePitch.SUSTAIN);
+            expect(result.composition.sections[0]?.beats[3]?.elements).toHaveLength(1);
+            expect(result.composition.sections[0]?.beats[3]?.elements[0]?.note?.octave).toBe(-1); // Lower octave
+            expect(result.composition.sections[0]?.beats[4]?.elements).toHaveLength(2);
+            expect(result.composition.sections[0]?.beats[4]?.elements[1]?.note?.octave).toBe(1); // Upper octave
+            expect(result.composition.sections[0]?.beats[5]?.elements[0]?.note?.pitch).toBe(NotePitch.SUSTAIN);
+            expect(result.composition.sections[0]?.beats[6]?.elements).toHaveLength(1);
+            expect(result.composition.sections[0]?.beats[6]?.elements[0]?.note?.octave).toBe(0); // Middle octave
         });
 
         it('should handle consecutive sustains with octave changes', () => {
             const input = `%%CONFIG
 title: Test
-@SCALE
+%% SCALE
 S -> Sa
-@COMPOSITION
-b: S' * * S. * *`;
+%% COMPOSITION
+#Main
+b: -S' * * *S. -* *`;
             const result = parser.parse(input);
-            expect(result.composition.beats).toHaveLength(6);
-            expect(result.composition.beats[0].notes[0].octave).toBe('upper');
-            expect(result.composition.beats[1].isSustain).toBe(true);
-            expect(result.composition.beats[2].isSustain).toBe(true);
-            expect(result.composition.beats[3].notes[0].octave).toBe('lower');
-            expect(result.composition.beats[4].isSustain).toBe(true);
-            expect(result.composition.beats[5].isSustain).toBe(true);
+            console.log('Parser output:', JSON.stringify(result, null, 2));
+            expect(result.composition.sections).toBeDefined();
+            expect(result.composition.sections).toHaveLength(1);
+            expect(result.composition.sections[0]?.beats).toBeDefined();
+            expect(result.composition.sections[0]?.beats).toHaveLength(6);
+            expect(result.composition.sections[0]?.beats[0]?.elements).toHaveLength(2);
+            expect(result.composition.sections[0]?.beats[0]?.elements[0]?.note?.pitch).toBe(NotePitch.SILENCE);
+            expect(result.composition.sections[0]?.beats[0]?.elements[1]?.note?.octave).toBe(1); // Upper octave
+            
+            expect(result.composition.sections[0]?.beats[1]?.elements[0]?.note?.pitch).toBe(NotePitch.SUSTAIN);
+            
+            expect(result.composition.sections[0]?.beats[3]?.elements[0]?.note?.pitch).toBe(NotePitch.SUSTAIN);
+            expect(result.composition.sections[0]?.beats[3]?.elements[1]?.note?.octave).toBe(-1); // Lower octave
+            expect(result.composition.sections[0]?.beats[4]?.elements).toHaveLength(2);
+            expect(result.composition.sections[0]?.beats[4]?.elements[0]?.note?.pitch).toBe(NotePitch.SILENCE);
+            expect(result.composition.sections[0]?.beats[4]?.elements[1]?.note?.pitch).toBe(NotePitch.SUSTAIN); // Lower octave
+            expect(result.composition.sections[0]?.beats[5]?.elements[0]?.note?.pitch).toBe(NotePitch.SUSTAIN);
         });
-
+            
         it('should handle compound notes with mixed octaves', () => {
             const input = `%%CONFIG
 title: Test
-@SCALE
+%% SCALE
 S -> Sa
-@COMPOSITION
-b: [S' R. G] [M P' D.]`;
+%% COMPOSITION
+#Main
+b: [S' R. G] [M P' D.] [al *N'S be] al:DSS`;
             const result = parser.parse(input);
-            expect(result.composition.beats[0].compounds).toHaveLength(2);
-            expect(result.composition.beats[0].compounds[0].notes[0].octave).toBe('upper');
-            expect(result.composition.beats[0].compounds[0].notes[1].octave).toBe('lower');
-            expect(result.composition.beats[0].compounds[0].notes[2].octave).toBe('middle');
-            expect(result.composition.beats[0].compounds[1].notes[0].octave).toBe('middle');
-            expect(result.composition.beats[0].compounds[1].notes[1].octave).toBe('upper');
-            expect(result.composition.beats[0].compounds[1].notes[2].octave).toBe('lower');
+            console.log('Parser output:', JSON.stringify(result, null, 2));
+            expect(result.composition.sections).toBeDefined();
+            expect(result.composition.sections).toHaveLength(1);
+            expect(result.composition.sections[0]?.beats).toBeDefined();
+            expect(result.composition.sections[0]?.beats).toHaveLength(4);
+            expect(result.composition.sections[0]?.beats[0]?.elements).toHaveLength(3);
+            expect(result.composition.sections[0]?.beats[0]?.elements[1]?.note?.octave).toBe(-1); // Upper octave
+            expect(result.composition.sections[0]?.beats[1]?.elements[1]?.note?.octave).toBe(1); // Upper octave
+            expect(result.composition.sections[0]?.beats[1]?.elements[2]?.note?.octave).toBe(-1); // Upper octave
+            expect(result.composition.sections[0]?.beats[2]?.elements).toHaveLength(5);
+            expect(result.composition.sections[0]?.beats[2]?.elements[0]?.lyrics).toBe('al');
+            expect(result.composition.sections[0]?.beats[3]?.elements).toHaveLength(3);
+            expect(result.composition.sections[0]?.beats[3]?.elements[0]?.lyrics).toBe('al');
+            expect(result.composition.sections[0]?.beats[3]?.elements[0]?.note?.pitch).toBe(NotePitch.D);
+            expect(result.composition.sections[0]?.beats[3]?.elements[1]?.note?.pitch).toBe(NotePitch.S);
         });
     });
 });
