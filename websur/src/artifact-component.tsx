@@ -904,7 +904,7 @@ const EditorView: React.FC<{
           <textarea
             value={content}
             onChange={(e) => onChange(e.target.value)}
-            className="w-full h-full p-4 font-mono text-sm bg-transparent border-0
+            className="w-full h-full p-4 pb-12 font-mono text-sm bg-transparent border-0 
                      focus:ring-0 resize-none"
             spellCheck={false}
           />
@@ -941,8 +941,8 @@ const EditorView: React.FC<{
             </Button>
           </div>
 
-          {/* Preview content */}
-          <div className="overflow-auto h-full">
+          {/* Preview content - add padding at bottom */}
+          <div className="overflow-auto h-full pb-12">
             <FormattedPreview content={content} />
           </div>
         </div>
@@ -1180,20 +1180,22 @@ const PreviewContent: React.FC<PreviewContentProps> = ({
           {(() => {
             try {
               const formatter = new SurFormatter();
+              let rowCounter = 0;  // Track actual beat rows
               
               return surDoc.composition.sections.map((section, sectionIdx) => {
                 const beatLines = groupBeatsIntoLines([...section.beats]);
 
                 return (
-                  <div key={sectionIdx} className="space-y-1.5">
+                  <div key={sectionIdx} className="space-y-2">
+                    {/* Section title - no row number */}
                     <h3 className={`font-semibold text-blue-600 text-center ${
                       hideControls ? 'text-sm' : 'text-lg mb-2'
                     }`}>
                       {section.title}
                     </h3>
                     
-                    {/* Beat numbers row */}
-                    <div className="font-mono text-xs text-gray-500">
+                    {/* Beat numbers row - no row number */}
+                    <div className="font-mono text-xs text-gray-500 ml-8">
                       <div className="grid grid-cols-4 gap-0">
                         {[0, 1, 2, 3].map((group) => (
                           <div key={group} className="grid grid-cols-4">
@@ -1210,34 +1212,54 @@ const PreviewContent: React.FC<PreviewContentProps> = ({
                       </div>
                     </div>
                     
-                    {/* Beat lines */}
-                    <div className="font-mono text-sm space-y-2">
-                      {beatLines.map((beatLine, lineIdx) => (
-                        <div key={lineIdx} className="grid grid-cols-4 gap-0">
-                          {[0, 1, 2, 3].map((group) => (
-                            <div key={group} className="grid grid-cols-4">
-                              {[0, 1, 2, 3].map((num) => {
-                                const beatIndex = group * 4 + num;
-                                const beat = beatLine[beatIndex] || {
-                                  elements: [{ note: { pitch: NotePitch.SILENCE } }],
-                                  bracketed: false,
-                                  position: beatIndex
-                                };
-                                return (
-                                  <div
-                                    key={beatIndex}
-                                    className={`text-center p-2 ${
-                                      (beatIndex + 1) % 4 === 0 ? 'border-r border-gray-200' : ''
-                                    } ${beat.elements.some(e => e.lyrics) ? 'text-blue-600' : ''}`}
-                                  >
-                                    {formatter.formatBeat(beat)}
-                                  </div>
-                                );
-                              })}
+                    {/* Beat lines with row numbers */}
+                    <div className="font-mono text-sm space-y-[0.01rem]">
+                      {beatLines.map((beatLine, lineIdx) => {
+                        rowCounter++;  // Increment only for actual beat lines
+                        return (
+                          <div key={lineIdx} className="flex items-center">
+                            {/* Row number */}
+                            <div className="w-8 text-right pr-2 text-xs text-gray-500 select-none">
+                              {rowCounter}
                             </div>
-                          ))}
-                        </div>
-                      ))}
+                            {/* Beat grid */}
+                            <div className="flex-1 grid grid-cols-4 gap-0">
+                              {[0, 1, 2, 3].map((group) => (
+                                <div key={group} className="border-r border-gray-200 last:border-r-0">
+                                  <div className="grid grid-cols-4">
+                                    {[0, 1, 2, 3].map((num) => {
+                                      const beatIndex = group * 4 + num;
+                                      const beat = beatLine[beatIndex] || {
+                                        elements: [{ note: { pitch: NotePitch.SILENCE } }],
+                                        bracketed: false,
+                                        position: { row: rowCounter - 1, beat_number: beatIndex }
+                                      };
+                                      return (
+                                        <div
+                                          key={beatIndex}
+                                          className={`text-center p-2 ${
+                                            (beatIndex + 1) % 4 === 0 ? 'border-r border-gray-200' : ''
+                                          } ${beat.elements.some(e => e.lyrics) ? 'text-blue-600' : ''} 
+                                          relative group`}
+                                        >
+                                          {formatter.formatBeat(beat)}
+                                          {/* Updated hover tooltip */}
+                                          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 
+                                                    bg-black text-white text-xs px-2 py-1 rounded 
+                                                    opacity-0 group-hover:opacity-100 transition-opacity 
+                                                    duration-200 pointer-events-none whitespace-nowrap">
+                                            Taal {rowCounter}, Beat {beatIndex + 1}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -1292,43 +1314,55 @@ const BeatLine: React.FC<BeatLineProps> = memo(({
   isNumberRow = false
 }) => {
   return (
-    <div className={`grid grid-cols-4 gap-0 ${
-      !isNumberRow && !hideControls ? 'border border-gray-200 rounded-lg' : ''
-    }`}>
-      {[0, 1, 2, 3].map((group) => (
-        <div key={group} className={`border-r border-gray-200 ${
-          hideControls || isNumberRow ? 'border-transparent' : ''
-        } last:border-r-0`}>
-          <div className="grid grid-cols-4">
-            {[0, 1, 2, 3].map((num) => {
-              const beatIndex = group * 4 + num;
-              const beat = beatLine[beatIndex] || {
-                elements: [{ note: { pitch: NotePitch.SILENCE } }],
-                bracketed: false,
-                position: beatIndex
-              };
-              return (
-                <div
-                  key={beatIndex}
-                  className={`text-center ${hideControls ? 'py-0.5' : 'p-2'} ${
-                    (beatIndex + 1) % 4 === 0 ? 'border-r border-gray-300' : 
-                    hideControls || isNumberRow ? 'border-transparent' : 'border-r border-gray-100'
-                  } last:border-r-0 relative group ${
-                    !isNumberRow && beat.elements.some(e => e.lyrics) ? 'text-blue-600' : ''
-                  }`}
-                >
-                  {formatter(beat)}
-                  {!isNumberRow && (
-                    <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                      Beat {lineIdx * 16 + beatIndex + 1}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+    <div className="flex items-center gap-2">
+      {/* Add row number */}
+      {!isNumberRow && (
+        <div className="text-xs text-gray-500 w-8 text-right pr-2 select-none">
+          {lineIdx + 1}
         </div>
-      ))}
+      )}
+      {/* Existing beat grid */}
+      <div className={`grid grid-cols-4 gap-0 flex-1 ${
+        !isNumberRow && !hideControls ? 'border border-gray-200 rounded-lg' : ''
+      }`}>
+        {[0, 1, 2, 3].map((group) => (
+          <div key={group} className={`border-r border-gray-200 ${
+            hideControls || isNumberRow ? 'border-transparent' : ''
+          } last:border-r-0`}>
+            <div className="grid grid-cols-4">
+              {[0, 1, 2, 3].map((num) => {
+                const beatIndex = group * 4 + num;
+                const beat = beatLine[beatIndex] || {
+                  elements: [{ note: { pitch: NotePitch.SILENCE } }],
+                  bracketed: false,
+                  position: beatIndex
+                };
+                return (
+                  <div
+                    key={beatIndex}
+                    className={`text-center ${hideControls ? 'py-0.5' : 'p-2'} ${
+                      (beatIndex + 1) % 4 === 0 ? 'border-r border-gray-300' : 
+                      hideControls || isNumberRow ? 'border-transparent' : 'border-r border-gray-100'
+                    } last:border-r-0 relative group ${
+                      !isNumberRow && beat.elements.some(e => e.lyrics) ? 'text-blue-600' : ''
+                    }`}
+                  >
+                    {formatter(beat)}
+                    {!isNumberRow && (
+                      <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 
+                                    bg-black text-white text-xs px-2 py-1 rounded 
+                                    opacity-0 group-hover:opacity-100 transition-opacity 
+                                    duration-200 pointer-events-none">
+                        Beat {lineIdx * 16 + beatIndex + 1}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 });
