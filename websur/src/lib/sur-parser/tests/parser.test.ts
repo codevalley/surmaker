@@ -188,4 +188,58 @@ b: S * M * P *`;
             expect(result.composition.beats[5].isSustain).toBe(true);
         });
     });
+
+    describe('Complex Pattern Parsing', () => {
+        it('should handle complex mixed patterns', () => {
+            const input = `%%CONFIG
+title: Test
+@SCALE
+S -> Sa
+@COMPOSITION
+b: S' [R G] * M. [P D'] * N`;
+            const result = parser.parse(input);
+            expect(result.composition.beats).toHaveLength(7);
+            expect(result.composition.beats[0].notes[0].octave).toBe('upper');
+            expect(result.composition.beats[1].compounds[0].notes).toHaveLength(2);
+            expect(result.composition.beats[2].isSustain).toBe(true);
+            expect(result.composition.beats[3].notes[0].octave).toBe('lower');
+            expect(result.composition.beats[4].compounds[0].notes[1].octave).toBe('upper');
+            expect(result.composition.beats[5].isSustain).toBe(true);
+            expect(result.composition.beats[6].notes[0].octave).toBe('middle');
+        });
+
+        it('should handle consecutive sustains with octave changes', () => {
+            const input = `%%CONFIG
+title: Test
+@SCALE
+S -> Sa
+@COMPOSITION
+b: S' * * S. * *`;
+            const result = parser.parse(input);
+            expect(result.composition.beats).toHaveLength(6);
+            expect(result.composition.beats[0].notes[0].octave).toBe('upper');
+            expect(result.composition.beats[1].isSustain).toBe(true);
+            expect(result.composition.beats[2].isSustain).toBe(true);
+            expect(result.composition.beats[3].notes[0].octave).toBe('lower');
+            expect(result.composition.beats[4].isSustain).toBe(true);
+            expect(result.composition.beats[5].isSustain).toBe(true);
+        });
+
+        it('should handle compound notes with mixed octaves', () => {
+            const input = `%%CONFIG
+title: Test
+@SCALE
+S -> Sa
+@COMPOSITION
+b: [S' R. G] [M P' D.]`;
+            const result = parser.parse(input);
+            expect(result.composition.beats[0].compounds).toHaveLength(2);
+            expect(result.composition.beats[0].compounds[0].notes[0].octave).toBe('upper');
+            expect(result.composition.beats[0].compounds[0].notes[1].octave).toBe('lower');
+            expect(result.composition.beats[0].compounds[0].notes[2].octave).toBe('middle');
+            expect(result.composition.beats[0].compounds[1].notes[0].octave).toBe('middle');
+            expect(result.composition.beats[0].compounds[1].notes[1].octave).toBe('upper');
+            expect(result.composition.beats[0].compounds[1].notes[2].octave).toBe('lower');
+        });
+    });
 });

@@ -17,8 +17,8 @@ import {
 } from './types';
 
 export class SurParser {
-  // Regex patterns for tokenization
-  private readonly notePattern = String.raw`[SRGMPDN]['.]*`;  // Note followed by optional octave marker
+  // Update regex patterns to handle more complex combinations
+  private readonly notePattern = String.raw`[SRGMPDN]['\.]?|\*|-`;  // Basic note, sustain, or silence
   private readonly quotedLyrics = String.raw`"[^"]*"`;  // Matches anything in quotes
   private readonly symbols = String.raw`[\[\]:]`;  // Matches brackets and colon
   private readonly separator = String.raw`\s+`;  // Matches whitespace
@@ -31,21 +31,21 @@ export class SurParser {
 
     const addToken = (value: string) => {
       if (!value) return;
-      
-      // Handle notes with octave markers
-      if (value.match(/^[SRGMPDN]['.]*$/)) {
-        tokens.push({ type: TokenType.NOTE, value });
-      } else if (value.match(/^[SRGMPDN]['.]*(?:[SRGMPDN]['.]*)+$/)) {
-        // Handle compound notes
-        const notes = value.match(/[SRGMPDN]['.']*/g) || [];
-        notes.forEach(note => {
-          tokens.push({ type: TokenType.NOTE, value: note });
+
+      // Handle compound patterns by splitting into individual tokens
+      if (!inQuotes && value.match(/^[-*SRGMPDN'.]+$/)) {
+        // Split the compound pattern into individual characters/notes
+        const parts = value.match(/[SRGMPDN]['\.]?|\*|-/g) || [];
+        parts.forEach(part => {
+          tokens.push({ type: TokenType.NOTE, value: part });
         });
-      } else if (value.startsWith('"') && value.endsWith('"')) {
-        // Handle quoted lyrics
+        return;
+      }
+      
+      // Handle other tokens normally
+      if (value.startsWith('"') && value.endsWith('"')) {
         tokens.push({ type: TokenType.LYRICS, value: value.slice(1, -1) });
       } else if (value.match(/^[a-zA-Z]/)) {
-        // Handle unquoted lyrics
         tokens.push({ type: TokenType.LYRICS, value });
       }
     };
@@ -54,15 +54,12 @@ export class SurParser {
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
 
-      // Handle quotes
       if (char === '"') {
         if (inQuotes) {
-          // End quote - add accumulated lyrics
           tokens.push({ type: TokenType.LYRICS, value: current });
           current = '';
           inQuotes = false;
         } else {
-          // Start quote - add any pending token
           if (current) addToken(current);
           current = '';
           inQuotes = true;
@@ -70,14 +67,10 @@ export class SurParser {
         continue;
       }
 
-      // Handle special characters when not in quotes
       if (!inQuotes) {
         if (char === ' ') {
-          // Add pending token and separator
           if (current) addToken(current);
-          if (tokens.length > 0 && tokens[tokens.length - 1].type !== TokenType.SEPARATOR) {
-            tokens.push({ type: TokenType.SEPARATOR, value: ' ' });
-          }
+          tokens.push({ type: TokenType.SEPARATOR, value: ' ' });
           current = '';
           continue;
         }
@@ -104,32 +97,37 @@ export class SurParser {
         }
       }
 
-      // Accumulate character
       current += char;
     }
 
-    // Handle any remaining content
     if (current) addToken(current);
 
     return tokens;
   }
 
   private parseNote(noteToken: string): Note {
-    // Extract note and octave marker
-    const pitch = noteToken[0] as NotePitch;
-    const octaveMarker = noteToken.slice(1);
-    
-    let octave: Octave = 0; // Default to middle octave
-    
-    if (octaveMarker === "'") {
-      octave = 1;  // Upper octave
-    } else if (octaveMarker === ".") {
-      octave = -1; // Lower octave
+    // Handle special notes first
+    if (noteToken === '-') {
+        return { pitch: NotePitch.SILENCE };
     }
-
+    if (noteToken === '*') {
+        return { pitch: NotePitch.SUSTAIN };
+    }
+    
+    // For regular notes, first character is the pitch, second (if exists) is octave
+    const pitch = noteToken[0] as NotePitch;
+    const octaveMarker = noteToken[1];
+    
+    let octave: Octave = 0;  // Default to middle octave
+    if (octaveMarker === "'") {
+        octave = 1;  // Upper octave
+    } else if (octaveMarker === ".") {
+        octave = -1;  // Lower octave
+    }
+    
     return {
-      pitch,
-      octave
+        pitch,
+        octave
     };
   }
 
@@ -203,7 +201,8 @@ export class SurParser {
       if (elems.length > 0) {
         beats.push({
           elements: elems.filter(e => e.type === ElementType.NORMAL),
-          bracketed
+          bracketed,
+          position: { row: 0, beat_number: beats.length }
         });
       }
     };
