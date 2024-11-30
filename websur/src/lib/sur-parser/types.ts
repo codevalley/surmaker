@@ -225,13 +225,20 @@ export const tokenizeBeatContent = (content: string): readonly Token[] => {
   return tokens;
 };
 
-interface Taal {
-  name: string;
+interface TaalVariant {
   beats: number;
   divisions: number;
   structure: string;
-  bols: string[][];  // Array of divisions, each containing array of beat bols
+  bols: string[][];
   markers: string[];
+}
+
+interface Taal {
+  name: string;
+  variants: {
+    default: TaalVariant;
+    [key: string]: TaalVariant;  // For other variants
+  };
 }
 
 interface TaalDatabase {
