@@ -4,10 +4,9 @@ taals:
   dadra:
     name: "Dadra"
     beats: 6
-    divisions: 2
-    structure: "3-3"
     variants:
       default:
+        divisions: 2
         structure: "3-3(X-0)"
         bols:
           - ["dha", "dhin", "na"]     # Division 1 (Sam)
@@ -17,6 +16,7 @@ taals:
           - "0"  # Khali
       
       benaras:
+        divisions: 2
         structure: "3-3(X-0)"
         bols:
           - ["dhin", "dhin", "na"]    # Division 1 (Sam)
@@ -28,10 +28,9 @@ taals:
   rupak:
     name: "Rupak"
     beats: 7
-    divisions: 3
-    structure: "3-2-2"
     variants:
       default:
+        divisions: 3
         structure: "3-2-2(0-1-2)"
         bols:
           - ["tin", "tin", "na"]      # Division 1 (Khali)
@@ -43,6 +42,7 @@ taals:
           - "2"  # Tali 2
 
       variant2:
+        divisions: 3
         structure: "3-2-2(X-2-3)"
         bols:
           - ["ti", "ti", "na"]        # Division 1 (Sam)
@@ -54,6 +54,7 @@ taals:
           - "3"  # Tali 3
       
       benaras:
+        divisions: 3
         structure: "3-2-2(0-1-2)"
         bols:
           - ["tin", "na", "tirakita"] # Division 1 (Khali)
@@ -67,35 +68,49 @@ taals:
   pashto:
     name: "Pashto"
     beats: 7
-    divisions: 3
-    structure: "3-2-2(X-2-3)"
-    bols:
-      - ["tin", "-", "traka"]          # Division 1 (Sam)
-      - ["dhin", "-"]                  # Division 2 (Tali 2)
-      - ["dha", "ge"]                  # Division 3 (Tali 3)
-    markers:
-      - "X"  # Sam
-      - "2"  # Tali 2
-      - "3"  # Tali 3
+    variants:
+      default:
+        divisions: 3
+        structure: "3-2-2(X-2-3)"
+        bols:
+          - ["tin", "-", "traka"]
+          - ["dhin", "-"]
+          - ["dha", "ge"]
+        markers:
+          - "X"
+          - "2"
+          - "3"
 
   keherwa:
     name: "Keherwa"
     beats: 8
-    divisions: 2
-    structure: "4-4(X-0)"
-    bols:
-      - ["dha", "ge", "na", "ti"]     # Division 1 (Sam)
-      - ["na", "ke", "dhi", "na"]     # Division 2 (Khali)
-    markers:
-      - "X"  # Sam
-      - "0"  # Khali
+    variants:
+      default:
+        divisions: 2
+        structure: "4-4(X-0)"
+        bols:
+          - ["dha", "ge", "na", "tin"]     # Division 1 (Sam)
+          - ["na", "ke", "dhin", "na"]     # Division 2 (Khali)
+        markers:
+          - "X"  # Sam
+          - "0"  # Khali
+      
+      benaras:
+        divisions: 2
+        structure: "4-4(X-0)"
+        bols:
+          - ["dha", "dhin", "na", "tin"]   # Division 1 (Sam)
+          - ["ta", "tin", "na", "dhin"]    # Division 2 (Khali)
+        markers:
+          - "X"  # Sam
+          - "0"  # Khali
 
   dhumali:
     name: "Dhumali"
     beats: 8
-    divisions: 2
     variants:
       default:
+        divisions: 2
         structure: "4-4(X-0)"
         bols:
           - ["dhin", "dhin", "dha", "tin"]           # Division 1 (Sam)
@@ -121,60 +136,80 @@ taals:
   basant:
     name: "Basant"
     beats: 9
-    divisions: 9
-    structure: "1-1-1-1-1-1-1-1-1(X-2-3-4-0-5-0-6-0)"
-    bols:
-      - ["dha"]                # Division 1 (Sam)
-      - ["din"]                # Division 2 (Tali 2)
-      - ["ta"]                 # Division 3 (Tali 3)
-      - ["dhet"]               # Division 4 (Tali 4)
-      - ["ta"]                 # Division 5 (Khali 1)
-      - ["tete"]               # Division 6 (Tali 5)
-      - ["kata"]               # Division 7 (Khali 2)
-      - ["gadi"]               # Division 8 (Tali 6)
-      - ["gana"]               # Division 9 (Khali 3)
-    markers:
-      - "X"  # Sam
-      - "2"  # Tali 2
-      - "3"  # Tali 3
-      - "4"  # Tali 4
-      - "0"  # Khali 1
-      - "5"  # Tali 5
-      - "0"  # Khali 2
-      - "6"  # Tali 6
-      - "0"  # Khali 3
+    variants:
+      default:
+        divisions: 9
+        structure: "1-1-1-1-1-1-1-1-1(X-2-3-4-0-5-0-6-0)"
+        bols:
+          - ["dha"]                # Division 1 (Sam)
+          - ["din"]                # Division 2 (Tali 2)
+          - ["ta"]                 # Division 3 (Tali 3)
+          - ["dhet"]               # Division 4 (Tali 4)
+          - ["ta"]                 # Division 5 (Khali 1)
+          - ["tete"]               # Division 6 (Tali 5)
+          - ["kata"]               # Division 7 (Khali 2)
+          - ["gadi"]               # Division 8 (Tali 6)
+          - ["gana"]               # Division 9 (Khali 3)
+        markers:
+          - "X"  # Sam
+          - "2"  # Tali 2
+          - "3"  # Tali 3
+          - "4"  # Tali 4
+          - "0"  # Khali 1
+          - "5"  # Tali 5
+          - "0"  # Khali 2
+          - "6"  # Tali 6
+          - "0"  # Khali 3
 
   jhap_sawari:
     name: "Jhap Sawari"
     beats: 9
-    divisions: 4
-    structure: "2-3-2-2(X-2-0-3)"
-    bols:
-      - ["dhin", "na"]                           # Division 1 (Sam)
-      - ["dhin", "dhi", "na"]                    # Division 2 (Tali 2)
-      - ["katta", "dhidhi"]                      # Division 3 (Khali)
-      - ["nadhi", "dhina"]                       # Division 4 (Tali 3)
-    markers:
-      - "X"  # Sam
-      - "2"  # Tali 2
-      - "0"  # Khali
-      - "3"  # Tali 3
+    variants:
+      default:
+        divisions: 4
+        structure: "2-3-2-2(X-2-0-3)"
+        bols:
+          - ["dhin", "na"]                           # Division 1 (Sam)
+          - ["dhin", "dhi", "na"]                    # Division 2 (Tali 2)
+          - ["katta", "dhidhi"]                      # Division 3 (Khali)
+          - ["nadhi", "dhina"]                       # Division 4 (Tali 3)
+        markers:
+          - "X"  # Sam
+          - "2"  # Tali 2
+          - "0"  # Khali
+          - "3"  # Tali 3
 
   jhaptaal:
     name: "Jhaptaal"
     beats: 10
-    divisions: 4
-    structure: "2-3-2-3(X-2-0-3)"
-    bols:
-      - ["dhi", "na"]                           # Division 1 (Sam)
-      - ["dhi", "dhi", "na"]                    # Division 2 (Tali 2)
-      - ["ti", "na"]                            # Division 3 (Khali)
-      - ["dhi", "dhi", "na"]                    # Division 4 (Tali 3)
-    markers:
-      - "X"  # Sam
-      - "2"  # Tali 2
-      - "0"  # Khali
-      - "3"  # Tali 3
+    variants:
+      default:
+        divisions: 4
+        structure: "2-3-2-3(X-2-0-3)"
+        bols:
+          - ["dhi", "na"]                           # Division 1 (Sam)
+          - ["dhi", "dhi", "na"]                    # Division 2 (Tali 2)
+          - ["ti", "na"]                            # Division 3 (Khali)
+          - ["dhi", "dhi", "na"]                    # Division 4 (Tali 3)
+        markers:
+          - "X"  # Sam
+          - "2"  # Tali 2
+          - "0"  # Khali
+          - "3"  # Tali 3
+      
+      benaras:
+        divisions: 4
+        structure: "2-3-2-3(X-2-0-3)"
+        bols:
+          - ["dhi", "na"]                           # Division 1 (Sam)
+          - ["dhi", "dhi", "dha"]                   # Division 2 (Tali 2)
+          - ["ti", "ta"]                            # Division 3 (Khali)
+          - ["dhi", "dhi", "dha"]                   # Division 4 (Tali 3)
+        markers:
+          - "X"  # Sam
+          - "2"  # Tali 2
+          - "0"  # Khali
+          - "3"  # Tali 3
 
   sultal:
     name: "Sultal"
