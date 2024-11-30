@@ -1,0 +1,94 @@
+# North Indian Classical Music Taals Database
+
+taals:
+  dadra:
+    name: "Dadra"
+    beats: 6
+    divisions: 2
+    structure: "3-3(X-0)"
+    bols:
+      - ["dha", "dhin", "na"]     # Division 1 (Sam)
+      - ["dha", "tin", "na"]      # Division 2 (Khali)
+    markers:
+      - "X"  # Sam
+      - "0"  # Khali
+
+  teental:
+    name: "Teental"
+    beats: 16
+    divisions: 4
+    structure: "4-4-4-4(X-2-0-3)"
+    bols:
+      - ["dha", "dhin", "dhin", "dha"]    # Division 1 (Sam)
+      - ["dha", "dhin", "dhin", "dha"]    # Division 2 (Tali 2)
+      - ["na", "tin", "tin", "ta"]        # Division 3 (Khali)
+      - ["ta", "dhin", "dhin", "dha"]     # Division 4 (Tali 3)
+    markers:
+      - "X"  # Sam
+      - "2"  # Tali 2
+      - "0"  # Khali
+      - "3"  # Tali 3
+
+  jhaptaal:
+    name: "Jhaptaal"
+    beats: 10
+    divisions: 4
+    structure: "2-3-2-3(X-2-0-3)"
+    bols:
+      - ["dhi", "na"]                    # Division 1 (Sam)
+      - ["dhi", "dhi", "na"]            # Division 2 (Tali 2)
+      - ["ti", "na"]                    # Division 3 (Khali)
+      - ["dhi", "dhi", "na"]            # Division 4 (Tali 3)
+    markers:
+      - "X"  # Sam
+      - "2"  # Tali 2
+      - "0"  # Khali
+      - "3"  # Tali 3
+
+  ektaal:
+    name: "Ektaal"
+    beats: 12
+    divisions: 6
+    structure: "2-2-2-2-2-2(X-0-2-0-3-4)"
+    bols:
+      - "dhin dhin"    # Division 1 (Sam)
+      - "dha dha"      # Division 2 (Khali)
+      - "tu na"        # Division 3 (Tali 2)
+      - "kat ta"       # Division 4 (Khali)
+      - "dhi dhi"      # Division 5 (Tali 3)
+      - "dha dha"      # Division 6 (Tali 4)
+    markers:
+      - "X"  # Sam
+      - "0"  # Khali 1
+      - "2"  # Tali 2
+      - "0"  # Khali 2
+      - "3"  # Tali 3
+      - "4"  # Tali 4
+
+  rupak:
+    name: "Rupak"
+    beats: 7
+    divisions: 3
+    structure: "3-2-2(0-1-2)"
+    bols:
+      - "tin tin na"   # Division 1 (Khali)
+      - "dhin na"      # Division 2 (Tali 1)
+      - "dhin na"      # Division 3 (Tali 2)
+    markers:
+      - "0"  # Khali (starts with Khali)
+      - "1"  # Tali 1
+      - "2"  # Tali 2
+
+  keherwa:
+    name: "Keherwa"
+    beats: 8
+    divisions: 2
+    structure: "4-4(X-0)"
+    bols:
+      - "dha ge na tin"    # Division 1 (Sam)
+      - "na ke dhin na"    # Division 2 (Khali)
+    markers:
+      - "X"  # Sam
+      - "0"  # Khali
+
+  # Add more taals following the same structure... 

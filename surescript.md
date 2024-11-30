@@ -392,3 +392,111 @@ When implementing a parser for SureScript:
 4. Preserve the original meaning when simplifying notation
 
 This parsing strategy ensures consistent interpretation of complex musical patterns while allowing for simplified notation where possible.
+
+### CONFIG Module
+
+The CONFIG module contains metadata about the composition. Required and optional fields are:
+
+```
+%%CONFIG
+name: "Albela Sajan"         // Name of the composition (required)
+raag: "aahir bhairav"        // Raag name (required)
+taal: "teental"             // Taal name (required)
+beats: "16"                 // Total beats in one cycle (required)
+divisions: "4"              // Number of divisions in the taal (optional)
+structure: "4-4-4-4(X-2-0-3)" // Division structure with sam/khaali markers (optional)
+tempo: "drut"               // Speed (optional)
+```
+
+Note: If divisions and structure are not specified, they can be inferred from a built-in taal database based on the taal name.
+
+## Supported Taals
+
+The following taals are supported with their respective beat patterns:
+
+### Teental
+- Beats: 16
+- Divisions: 4
+- Structure: 4-4-4-4(X-2-0-3)
+```
+X  2  0  3
+│       │       │       │
+Dha Dhin Dhin Dha | Dha Dhin Dhin Dha | Na Tin Tin Ta | Ta Dhin Dhin Dha
+```
+
+### Jhaptaal
+- Beats: 10
+- Divisions: 4
+- Structure: 2-3-2-3(X-2-0-3)
+```
+X     2    0     3
+│     │    │     │
+Dhi Na | Dhi Dhi Na | Ti Na | Dhi Dhi Na
+```
+
+### Ektaal
+- Beats: 12
+- Divisions: 6
+- Structure: 2-2-2-2-2-2(X-0-2-0-3-4)
+```
+X  0  2  0  3  4
+│  │  │  │  │  │
+Dhin Dhin | Dha Dha | Tu Na | Kat Ta | Dhi Dhi | Dha Dha
+```
+
+### Rupak
+- Beats: 7
+- Divisions: 3
+- Structure: 3-2-2(0-1-2)
+```
+0    1   2
+│    │   │
+Tin Tin Na | Dhin Na | Dhin Na
+```
+
+### Dadra
+- Beats: 6
+- Divisions: 2
+- Structure: 3-3(X-0)
+```
+X     0
+│     │
+Dha Dhin Na | Dha Tin Na
+```
+
+### Keherwa
+- Beats: 8
+- Divisions: 2
+- Structure: 4-4(X-0)
+```
+X        0
+│        │
+Dha Ge Na Tin | Na Ke Dhin Na
+```
+
+## Taal Structure Notation
+
+The structure field in CONFIG uses the following format:
+```
+<beats-per-division>-<beats-per-division>...(X-2-0-3...)
+```
+
+Where:
+- Numbers before parentheses represent the number of beats in each division
+- Characters in parentheses represent the sam/khaali markers for each division:
+  - X: Sam (first beat)
+  - 0: Khaali (empty)
+  - 1,2,3...: Other tali (clap) positions
+
+Examples:
+```
+"4-4-4-4(X-2-0-3)"    // Teental: 4 divisions of 4 beats each
+"3-3(X-0)"            // Dadra: 2 divisions of 3 beats each
+"2-3-2-3(X-2-0-3)"    // Jhaptaal: 4 divisions with varying beats
+```
+
+When rendering compositions, these markers can be used to:
+1. Group beats visually according to divisions
+2. Show sam/khaali positions
+3. Add appropriate spacing or visual indicators
+4. Display traditional taal notation
