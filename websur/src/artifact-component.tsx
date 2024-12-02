@@ -253,9 +253,46 @@ const SUREditor: React.FC<{ content: string; onChange: (content: string) => void
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(previewContent);
+      const surDoc = surParser.parse(editableContent);
+      const formatter = new SurFormatter();
+      
+      // First pass: calculate max visual beat width
+      let maxBeatWidth = 0;
+      surDoc.composition.sections.forEach(section => {
+        section.beats.forEach(beat => {
+          const formattedBeat = formatter.formatBeat(beat);
+          const visualLength = getVisualLength(formattedBeat);
+          maxBeatWidth = Math.max(maxBeatWidth, visualLength);
+        });
+      });
+      
+      maxBeatWidth += 2; // Add padding
+      
+      const formattedContent = surDoc.composition.sections.map((section: Section) => {
+        const sectionLines = [`#${section.title}`];
+        
+        // Add beat numbers row
+        sectionLines.push(`#: ${generateBeatNumbers(maxBeatWidth)}`);
+        
+        const beatLines = groupBeatsIntoLines(section.beats);
+        
+        beatLines.forEach((beatLine) => {
+          const formattedBeats = beatLine.map(beat => {
+            const formatted = formatter.formatBeat(beat);
+            const visualLength = getVisualLength(formatted);
+            const paddingNeeded = maxBeatWidth - visualLength;
+            return formatted + ' '.repeat(paddingNeeded);
+          });
+          
+          sectionLines.push(`b: ${formattedBeats.join(' ')}`);
+        });
+        
+        return sectionLines.join('\n');
+      }).join('\n\n');
+
+      await navigator.clipboard.writeText(formattedContent);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000); // Reset after 2 seconds
+      setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy text:', err);
     }
@@ -351,12 +388,12 @@ const SUREditor: React.FC<{ content: string; onChange: (content: string) => void
                 >
                   {copied ? (
                     <>
-                      <Check className="h-3 w-3 mr-1.5 text-green-600" />
+                      <Check className="h-3 w-3 text-green-600" />
                       Copied!
                     </>
                   ) : (
                     <>
-                      <Copy className="h-3 w-3 mr-1.5" />
+                      <Copy className="h-3 w-3" />
                       Copy
                     </>
                   )}
@@ -876,12 +913,34 @@ const EditorView: React.FC<{
       const surDoc = surParser.parse(content);
       const formatter = new SurFormatter();
       
+      // First pass: calculate max visual beat width
+      let maxBeatWidth = 0;
+      surDoc.composition.sections.forEach(section => {
+        section.beats.forEach(beat => {
+          const formattedBeat = formatter.formatBeat(beat);
+          const visualLength = getVisualLength(formattedBeat);
+          maxBeatWidth = Math.max(maxBeatWidth, visualLength);
+        });
+      });
+      
+      maxBeatWidth += 2; // Add padding
+      
       const formattedContent = surDoc.composition.sections.map((section: Section) => {
         const sectionLines = [`#${section.title}`];
+        
+        // Add beat numbers row
+        sectionLines.push(`#: ${generateBeatNumbers(maxBeatWidth)}`);
+        
         const beatLines = groupBeatsIntoLines(section.beats);
         
         beatLines.forEach((beatLine) => {
-          const formattedBeats = beatLine.map(beat => formatter.formatBeat(beat));
+          const formattedBeats = beatLine.map(beat => {
+            const formatted = formatter.formatBeat(beat);
+            const visualLength = getVisualLength(formatted);
+            const paddingNeeded = maxBeatWidth - visualLength;
+            return formatted + ' '.repeat(paddingNeeded);
+          });
+          
           sectionLines.push(`b: ${formattedBeats.join(' ')}`);
         });
         
@@ -1219,13 +1278,15 @@ const PreviewContent: React.FC<PreviewContentProps> = ({
                         return (
                           <div key={lineIdx} className="flex items-center">
                             {/* Row number */}
-                            <div className="w-8 text-right pr-2 text-xs text-gray-500 select-none">
+                            <div className="text-xs text-gray-500 w-8 text-right pr-2 select-none">
                               {rowCounter}
                             </div>
                             {/* Beat grid */}
                             <div className="flex-1 grid grid-cols-4 gap-0">
                               {[0, 1, 2, 3].map((group) => (
-                                <div key={group} className="border-r border-gray-200 last:border-r-0">
+                                <div key={group} className={`border-r border-gray-200 ${
+                                  hideControls || lineIdx === 0 ? 'border-transparent' : ''
+                                } last:border-r-0`}>
                                   <div className="grid grid-cols-4">
                                     {[0, 1, 2, 3].map((num) => {
                                       const beatIndex = group * 4 + num;
@@ -1237,10 +1298,12 @@ const PreviewContent: React.FC<PreviewContentProps> = ({
                                       return (
                                         <div
                                           key={beatIndex}
-                                          className={`text-center p-2 ${
-                                            (beatIndex + 1) % 4 === 0 ? 'border-r border-gray-200' : ''
-                                          } ${beat.elements.some(e => e.lyrics) ? 'text-blue-600' : ''} 
-                                          relative group`}
+                                          className={`text-center ${hideControls ? 'py-0.5' : 'p-2'} ${
+                                            (beatIndex + 1) % 4 === 0 ? 'border-r border-gray-300' : 
+                                            hideControls || lineIdx === 0 ? 'border-transparent' : 'border-r border-gray-100'
+                                          } last:border-r-0 relative group ${
+                                            !hideControls && beat.elements.some(e => e.lyrics) ? 'text-blue-600' : ''
+                                          }`}
                                         >
                                           {formatter.formatBeat(beat)}
                                           {/* Updated hover tooltip */}
